@@ -31,28 +31,30 @@ def _setup_llm(response_text: str) -> None:
 
 
 async def test_build_valid_tool() -> None:
-    tool_json = json.dumps({
-        "name": "search_routes",
-        "description": "Search for train routes",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "origin": {"type": "string", "description": "Departure city"},
-                "destination": {"type": "string", "description": "Arrival city"},
+    _setup_llm(json.dumps({
+        "tool": {
+            "name": "search_routes",
+            "description": "Search for train routes",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "origin": {"type": "string", "description": "Departure city"},
+                    "destination": {"type": "string", "description": "Arrival city"},
+                },
+                "required": ["origin", "destination"],
             },
-            "required": ["origin", "destination"],
-        },
-        "request": {
-            "method": "POST",
-            "path": "/api/search",
-            "body": {
-                "origin": {"$param": "origin"},
-                "destination": {"$param": "destination"},
-                "currency": "EUR",
+            "request": {
+                "method": "POST",
+                "path": "/api/search",
+                "body": {
+                    "origin": {"$param": "origin"},
+                    "destination": {"$param": "destination"},
+                    "currency": "EUR",
+                },
             },
         },
-    })
-    _setup_llm(tool_json)
+        "consumed_trace_ids": ["t_0001"],
+    }))
 
     traces = [
         make_trace(
@@ -65,33 +67,78 @@ async def test_build_valid_tool() -> None:
     result = await step.run(ToolBuildInput(
         candidate=ToolCandidate("search_routes", "Search routes", ["t_0001"]),
         traces=traces,
+        contexts=[],
         base_url="https://api.example.com",
         existing_tools=[],
+        system_context="",
     ))
 
-    assert result.name == "search_routes"
-    assert result.request.method == "POST"
-    assert result.request.body is not None
-    assert result.request.body["currency"] == "EUR"
+    assert result.tool.name == "search_routes"
+    assert result.tool.request.method == "POST"
+    assert result.tool.request.body is not None
+    assert result.tool.request.body["currency"] == "EUR"
+    assert result.consumed_trace_ids == ["t_0001"]
+
+
+async def test_build_tool_minimal_params() -> None:
+    """Tool with minimal parameters is built correctly."""
+    _setup_llm(json.dumps({
+        "tool": {
+            "name": "search_routes",
+            "description": "Search for train routes",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "origin": {"type": "string"},
+                },
+                "required": ["origin"],
+            },
+            "request": {
+                "method": "POST",
+                "path": "/api/search",
+                "body": {"origin": {"$param": "origin"}},
+            },
+        },
+        "consumed_trace_ids": ["t_0001"],
+    }))
+
+    traces = [
+        make_trace("t_0001", "POST", "https://api.example.com/api/search", 200, 1000),
+    ]
+
+    step = BuildToolStep()
+    result = await step.run(ToolBuildInput(
+        candidate=ToolCandidate("search_routes", "Search routes", ["t_0001"]),
+        traces=traces,
+        contexts=[],
+        base_url="https://api.example.com",
+        existing_tools=[],
+        system_context="",
+    ))
+
+    assert result.tool.name == "search_routes"
+    assert result.consumed_trace_ids == ["t_0001"]
 
 
 async def test_build_tool_with_path_params() -> None:
-    tool_json = json.dumps({
-        "name": "get_user",
-        "description": "Get a user by ID",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "user_id": {"type": "string", "description": "User ID"},
+    _setup_llm(json.dumps({
+        "tool": {
+            "name": "get_user",
+            "description": "Get a user by ID",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "user_id": {"type": "string", "description": "User ID"},
+                },
+                "required": ["user_id"],
             },
-            "required": ["user_id"],
+            "request": {
+                "method": "GET",
+                "path": "/api/users/{user_id}",
+            },
         },
-        "request": {
-            "method": "GET",
-            "path": "/api/users/{user_id}",
-        },
-    })
-    _setup_llm(tool_json)
+        "consumed_trace_ids": ["t_0001"],
+    }))
 
     traces = [
         make_trace("t_0001", "GET", "https://api.example.com/api/users/123", 200, 1000),
@@ -101,23 +148,27 @@ async def test_build_tool_with_path_params() -> None:
     result = await step.run(ToolBuildInput(
         candidate=ToolCandidate("get_user", "Get user", ["t_0001"]),
         traces=traces,
+        contexts=[],
         base_url="https://api.example.com",
         existing_tools=[],
+        system_context="",
     ))
 
-    assert result.name == "get_user"
-    assert "{user_id}" in result.request.path
+    assert result.tool.name == "get_user"
+    assert "{user_id}" in result.tool.request.path
 
 
 async def test_build_tool_validation_missing_param() -> None:
     # Path param not in parameters → validation error
-    tool_json = json.dumps({
-        "name": "get_user",
-        "description": "Get a user",
-        "parameters": {"type": "object", "properties": {}},
-        "request": {"method": "GET", "path": "/api/users/{user_id}"},
-    })
-    _setup_llm(tool_json)
+    _setup_llm(json.dumps({
+        "tool": {
+            "name": "get_user",
+            "description": "Get a user",
+            "parameters": {"type": "object", "properties": {}},
+            "request": {"method": "GET", "path": "/api/users/{user_id}"},
+        },
+        "consumed_trace_ids": ["t_0001"],
+    }))
 
     traces = [make_trace("t_0001", "GET", "https://api.example.com/api/users/123", 200, 1000)]
 
@@ -126,8 +177,10 @@ async def test_build_tool_validation_missing_param() -> None:
         await step.run(ToolBuildInput(
             candidate=ToolCandidate("get_user", "Get user", ["t_0001"]),
             traces=traces,
+            contexts=[],
             base_url="https://api.example.com",
             existing_tools=[],
+            system_context="",
         ))
 
 

@@ -64,7 +64,17 @@ def _make_bundle() -> CaptureBundle:
 
 
 def _setup_pipeline_llm() -> None:
-    """Set up a mock LLM that handles the pipeline calls."""
+    """Set up a mock LLM that handles the greedy pipeline calls.
+
+    The pipeline calls identify per trace (no tools), then build for useful ones (with tools).
+    Call sequence:
+      1. detect base URL
+      2. analyze auth
+      3. identify t_0001 -> useful (search_routes)
+      4. build search_routes (with tools) -> returns tool + consumed [t_0001, t_0002]
+      5. identify t_0003 -> useful (get_account)
+      6. build get_account (with tools) -> returns tool + consumed [t_0003]
+    """
     mock_client = MagicMock()
 
     async def mock_create(**kwargs: Any) -> MagicMock:
@@ -77,13 +87,25 @@ def _setup_pipeline_llm() -> None:
         # Extract the original prompt (first user message content)
         prompt = ""
         for m in messages:
-            if isinstance(m, dict) and m.get("role") == "user":
+            if m.get("role") == "user":
                 c = m.get("content", "")
                 if isinstance(c, str):
                     prompt = c
                     break
+                if isinstance(c, list):
+                    blocks = cast(list[dict[str, Any]], c)
+                    prompt = "".join(b["text"] for b in blocks if b.get("type") == "text")
+                    break
+
+        # Also extract system text for routing
+        system_text = ""
+        system_raw = kwargs.get("system")
+        if isinstance(system_raw, list):
+            system_blocks = cast(list[dict[str, Any]], system_raw)
+            system_text = " ".join(b.get("text", "") for b in system_blocks)
 
         prompt_lower = prompt.lower()
+        full_text_lower = (prompt + " " + system_text).lower()
 
         if "base url" in prompt_lower and "business api" in prompt_lower:
             content_block.text = json.dumps({"base_url": "https://api.example.com"})
@@ -94,51 +116,57 @@ def _setup_pipeline_llm() -> None:
                 "token_prefix": "Bearer",
                 "obtain_flow": "login_form",
             })
-        elif "identify" in prompt_lower and "business capabilit" in prompt_lower:
-            # Batch mode: return ALL candidates in one call
-            content_block.text = json.dumps([
-                {
-                    "name": "search_routes",
-                    "description": "Search for train routes",
-                    "trace_ids": ["t_0001", "t_0002"],
-                },
-                {
-                    "name": "get_account",
-                    "description": "Get account information",
-                    "trace_ids": ["t_0003"],
-                },
-            ])
-        elif "building an mcp tool" in prompt_lower and "search_routes" in prompt:
+        elif "target trace: t_0001" in prompt_lower:
             content_block.text = json.dumps({
+                "useful": True,
                 "name": "search_routes",
                 "description": "Search for train routes",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "origin": {"type": "string"},
-                        "destination": {"type": "string"},
-                    },
-                    "required": ["origin", "destination"],
-                },
-                "request": {
-                    "method": "POST",
-                    "path": "/api/search",
-                    "body": {
-                        "origin": {"$param": "origin"},
-                        "destination": {"$param": "destination"},
-                        "currency": "EUR",
-                    },
-                },
             })
-        elif "building an mcp tool" in prompt_lower and "get_account" in prompt:
+        elif "candidate: search_routes" in prompt_lower:
             content_block.text = json.dumps({
-                "name": "get_account",
-                "description": "Get account info",
-                "parameters": {"type": "object", "properties": {}},
-                "request": {"method": "GET", "path": "/api/account"},
+                "tool": {
+                    "name": "search_routes",
+                    "description": "Search for train routes",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "origin": {"type": "string"},
+                            "destination": {"type": "string"},
+                        },
+                        "required": ["origin", "destination"],
+                    },
+                    "request": {
+                        "method": "POST",
+                        "path": "/api/search",
+                        "body": {
+                            "origin": {"$param": "origin"},
+                            "destination": {"$param": "destination"},
+                            "currency": "EUR",
+                        },
+                    },
+                },
+                "consumed_trace_ids": ["t_0001", "t_0002"],
             })
+        elif "target trace: t_0003" in prompt_lower:
+            content_block.text = json.dumps({
+                "useful": True,
+                "name": "get_account",
+                "description": "Get account information",
+            })
+        elif "candidate: get_account" in prompt_lower:
+            content_block.text = json.dumps({
+                "tool": {
+                    "name": "get_account",
+                    "description": "Get account info",
+                    "parameters": {"type": "object", "properties": {}},
+                    "request": {"method": "GET", "path": "/api/account"},
+                },
+                "consumed_trace_ids": ["t_0003"],
+            })
+        elif "business capability" in full_text_lower:
+            content_block.text = json.dumps({"useful": False})
         else:
-            content_block.text = json.dumps({"stop": True})
+            content_block.text = json.dumps({"useful": False})
 
         resp.content = [content_block]
         return resp
@@ -169,4 +197,4 @@ async def test_pipeline_progress_callback() -> None:
 
     assert any("base url" in m.lower() for m in messages)
     assert any("tool" in m.lower() for m in messages)
-    assert any("candidate" in m.lower() for m in messages)
+    assert any("evaluating" in m.lower() for m in messages)

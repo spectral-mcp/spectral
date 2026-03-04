@@ -1,113 +1,91 @@
-"""Step: Identify all business capabilities from traces in a single batch call."""
+"""Step: Evaluate a single trace to decide if it represents a useful business capability."""
 
 from __future__ import annotations
 
-from typing import Any, cast
-from urllib.parse import urlparse
+import json
+from typing import Any
 
 from cli.commands.analyze.steps.base import Step
-from cli.commands.analyze.steps.mcp.types import IdentifyInput, ToolCandidate
-from cli.commands.analyze.utils import compact_url
+from cli.commands.analyze.steps.mcp.types import (
+    IdentifyInput,
+    IdentifyResponse,
+    ToolCandidate,
+)
+from cli.commands.analyze.utils import compact_url, sanitize_headers, truncate_json
 from cli.commands.capture.types import Trace
 from cli.helpers.http import get_header
 import cli.helpers.llm as llm
 
+IDENTIFY_INSTRUCTIONS = """\
+## Your task
 
-class IdentifyCapabilitiesStep(Step[IdentifyInput, list[ToolCandidate]]):
-    """Identify all business capabilities from the trace pool in one call.
+Does this trace represent a useful **business capability** (something a user can do with this API: search, create, view, update, delete, etc.)?
 
-    Returns a list of ToolCandidate (may be empty if nothing useful).
+Reason about the **actual content** of the request — the URL, headers, and especially the request body. The same URL can serve completely different purposes depending on the body content (e.g. a single `/graphql` endpoint, or an RPC endpoint where the `action` field determines the operation).
+
+Ignore:
+- Static assets, config/init requests, analytics, tracking, translation endpoints
+- Health checks, version checks, feature flags
+- Anything already covered by an existing tool listed above
+
+If this trace is useful, return: {"useful": true, "name": "tool_name_snake_case", "description": "What this does in business terms"}
+If not useful, return: {"useful": false}"""
+
+
+class IdentifyCapabilitiesStep(Step[IdentifyInput, ToolCandidate | None]):
+    """Evaluate a single trace to decide if it represents a useful capability.
+
+    Returns a ToolCandidate if useful, None otherwise.
+    No tools are passed to the LLM — this is a lightweight call.
     """
 
     name = "identify_capabilities"
 
-    async def _execute(self, input: IdentifyInput) -> list[ToolCandidate]:
-        base_url = input.base_url
-        parsed_base = urlparse(base_url)
-        base_origin = f"{parsed_base.scheme}://{parsed_base.netloc}"
-        base_path = parsed_base.path.rstrip("/")
+    async def _execute(self, input: IdentifyInput) -> ToolCandidate | None:
+        target = input.target_trace
 
-        # Build compact correlation summaries with enriched trace lines
-        correlation_summaries: list[str] = []
-        remaining_ids = {t.meta.id for t in input.remaining_traces}
+        # Format target trace request details inline
+        request_details = format_request_details(target)
 
-        for corr in input.correlations:
-            relevant_traces = [t for t in corr.traces if t.meta.id in remaining_ids]
-            if not relevant_traces:
-                continue
-
-            ctx = corr.context
-            action_desc = (
-                f"[{ctx.meta.action}] "
-                f"{ctx.meta.element.text or ctx.meta.element.selector} "
-                f"on {ctx.meta.page.url}"
-            )
-            trace_lines = [
-                _trace_summary_line(t, base_origin, base_path)
-                for t in relevant_traces
-            ]
-            correlation_summaries.append(
-                f"UI action: {action_desc}\nTriggered:\n" + "\n".join(trace_lines)
+        # Format existing tools list
+        existing_tools_text = ""
+        if input.existing_tools:
+            existing_tools_text = "\n\n## Already-built tools (do NOT duplicate)\n" + "\n".join(
+                f"- **{t.name}**: {t.description} ({t.request.method} {t.request.path})"
+                for t in input.existing_tools
             )
 
-        # Also list uncorrelated traces
-        correlated_ids: set[str] = set()
-        for corr in input.correlations:
-            for t in corr.traces:
-                correlated_ids.add(t.meta.id)
-        uncorrelated = [
-            t for t in input.remaining_traces if t.meta.id not in correlated_ids
-        ]
-        if uncorrelated:
-            lines = [
-                _trace_summary_line(t, base_origin, base_path)
-                for t in uncorrelated
-            ]
-            correlation_summaries.append(
-                "Uncorrelated traces (no UI action):\n" + "\n".join(lines)
-            )
+        prompt = f"""{existing_tools_text}
 
-        prompt = f"""You are analyzing captured HTTP traffic to identify business capabilities that can become MCP tools.
+## Target trace: {target.meta.id}
 
-Each tool represents one thing a user can do with the API (search, create, view, update, delete, etc.).
+{request_details}"""
 
-## Traces
-
-{chr(10).join(correlation_summaries) if correlation_summaries else "No traces."}
-
-## Your task
-
-List ALL business capabilities you can identify from these traces. Return a JSON array.
-- Ignore static assets, config files, analytics, tracking, and translation endpoints.
-- Each capability should map to one API operation (one or more traces with the same endpoint).
-- Use snake_case for tool names (e.g., search_routes, get_account).
-
-If nothing useful exists, return an empty array: []
-
-Otherwise return a JSON array of objects:
-[{{"name": "tool_name", "description": "What this tool does in business terms", "trace_ids": ["t_0001", "t_0002"]}}]"""
-
-        text = await llm.ask(
+        result = await llm.ask(
             prompt,
-            label="identify_capabilities",
-            max_tokens=4096,
+            system=[input.system_context, IDENTIFY_INSTRUCTIONS],
+            label=f"identify_{target.meta.id}",
+            max_tokens=1024,
+            response_model=IdentifyResponse,
         )
 
-        data = llm.extract_json(text)
+        if not result.useful:
+            return None
 
-        if isinstance(data, list):
-            return _parse_candidates(data)
+        if not result.name or not result.description:
+            return None
 
-        # Handle single-object response (LLM may return one instead of array)
-        if data.get("stop"):
-            return []
-        return _parse_candidates([data])
+        return ToolCandidate(
+            name=result.name,
+            description=result.description,
+            trace_ids=[target.meta.id],
+        )
 
 
-def _trace_summary_line(
+def trace_timeline_line(
     trace: Trace, base_origin: str, base_path: str
 ) -> str:
-    """Build an enriched one-line summary for a trace."""
+    """Build a chronological timeline line for a trace."""
     url = trace.meta.request.url
     # Strip base URL to show relative path
     relative = url
@@ -126,19 +104,19 @@ def _trace_summary_line(
     body_size = trace.meta.response.body_size or (
         len(trace.response_body) if trace.response_body else 0
     )
-    size_str = _format_size(body_size) if body_size else ""
+    size_str = format_size(body_size) if body_size else ""
 
     extras = " ".join(filter(None, [ct_short, size_str]))
     extras_part = f" ({extras})" if extras else ""
 
     return (
-        f"  - {trace.meta.id}: {trace.meta.request.method} "
+        f"\U0001f310 {trace.meta.id}: {trace.meta.request.method} "
         f"{compact_url(relative) if len(relative) > 80 else relative} "
-        f"→ {trace.meta.response.status}{extras_part}"
+        f"\u2192 {trace.meta.response.status}{extras_part}"
     )
 
 
-def _format_size(size: int) -> str:
+def format_size(size: int) -> str:
     if size >= 1024 * 1024:
         return f"{size / (1024 * 1024):.1f}MB"
     if size >= 1024:
@@ -146,22 +124,28 @@ def _format_size(size: int) -> str:
     return f"{size}B"
 
 
-def _parse_candidates(items: list[Any]) -> list[ToolCandidate]:
-    candidates: list[ToolCandidate] = []
-    for item in items:
-        if not isinstance(item, dict):
-            continue
-        d = cast(dict[str, Any], item)
-        name = d.get("name")
-        description = d.get("description")
-        trace_ids: list[Any] = d.get("trace_ids", [])
-        if not name or not description or not trace_ids:
-            continue
-        candidates.append(
-            ToolCandidate(
-                name=str(name),
-                description=str(description),
-                trace_ids=[str(tid) for tid in trace_ids],
-            )
-        )
-    return candidates
+def format_request_details(trace: Trace) -> str:
+    """Format full request details for inline display in the prompt."""
+    parts: list[str] = []
+    parts.append(f"**{trace.meta.request.method} {trace.meta.request.url}**")
+    parts.append(f"Status: {trace.meta.response.status}")
+
+    # Sanitized request headers
+    headers = sanitize_headers(
+        {h.name: h.value for h in trace.meta.request.headers}
+    )
+    if headers:
+        header_lines = ", ".join(f"{k}: {v}" for k, v in headers.items())
+        parts.append(f"Headers: {header_lines}")
+
+    # Request body (truncated)
+    if trace.request_body:
+        try:
+            body: Any = json.loads(trace.request_body)
+            truncated = truncate_json(body, max_keys=15)
+            parts.append(f"Request body: {llm.compact_json(truncated)}")
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            raw = trace.request_body.decode(errors="replace")[:500]
+            parts.append(f"Request body (raw): {raw}")
+
+    return "\n".join(parts)

@@ -1,4 +1,4 @@
-"""Tests for MCP identify capabilities step (batch mode)."""
+"""Tests for MCP identify capabilities step (per-trace evaluation)."""
 
 from __future__ import annotations
 
@@ -8,9 +8,9 @@ from unittest.mock import MagicMock
 
 from cli.commands.analyze.steps.mcp.identify import IdentifyCapabilitiesStep
 from cli.commands.analyze.steps.mcp.types import IdentifyInput
-from cli.commands.analyze.steps.types import Correlation
+from cli.formats.mcp_tool import ToolDefinition, ToolRequest
 import cli.helpers.llm as llm
-from tests.conftest import make_context, make_trace
+from tests.conftest import make_trace
 
 
 def _setup_llm(response_text: str) -> None:
@@ -29,76 +29,65 @@ def _setup_llm(response_text: str) -> None:
     llm.init(client=mock_client, model="test")
 
 
-async def test_identify_returns_candidates() -> None:
-    _setup_llm(json.dumps([
-        {
-            "name": "search_routes",
-            "description": "Search for train routes",
-            "trace_ids": ["t_0001", "t_0002"],
-        },
-        {
-            "name": "get_account",
-            "description": "Get account info",
-            "trace_ids": ["t_0003"],
-        },
-    ]))
+async def test_identify_returns_candidate_when_useful() -> None:
+    _setup_llm(json.dumps({
+        "useful": True,
+        "name": "search_routes",
+        "description": "Search for train routes",
+    }))
 
-    traces = [
-        make_trace("t_0001", "POST", "https://api.example.com/search", 200, 1000),
-        make_trace("t_0002", "POST", "https://api.example.com/search", 200, 2000),
-        make_trace("t_0003", "GET", "https://api.example.com/account", 200, 3000),
-    ]
-    ctx = make_context("c_0001", 999)
-    correlations = [Correlation(context=ctx, traces=traces[:2])]
+    target = make_trace("t_0001", "POST", "https://api.example.com/search", 200, 1000)
 
     step = IdentifyCapabilitiesStep()
     result = await step.run(IdentifyInput(
-        correlations=correlations,
-        remaining_traces=traces,
+        remaining_traces=[target],
         base_url="https://api.example.com",
+        target_trace=target,
+        existing_tools=[],
+        system_context="\U0001f310 t_0001: POST /search \u2192 200",
     ))
 
-    assert isinstance(result, list)
-    assert len(result) == 2
-    assert result[0].name == "search_routes"
-    assert result[0].trace_ids == ["t_0001", "t_0002"]
-    assert result[1].name == "get_account"
+    assert result is not None
+    assert result.name == "search_routes"
+    assert result.description == "Search for train routes"
+    assert result.trace_ids == ["t_0001"]
 
 
-async def test_identify_returns_empty_on_stop() -> None:
-    _setup_llm("[]")
+async def test_identify_returns_none_when_not_useful() -> None:
+    _setup_llm(json.dumps({"useful": False}))
 
-    traces = [
-        make_trace("t_0001", "GET", "https://cdn.example.com/font.woff", 200, 1000),
-    ]
+    target = make_trace("t_0001", "GET", "https://cdn.example.com/font.woff", 200, 1000)
     step = IdentifyCapabilitiesStep()
     result = await step.run(IdentifyInput(
-        correlations=[],
-        remaining_traces=traces,
+        remaining_traces=[target],
         base_url="https://cdn.example.com",
+        target_trace=target,
+        existing_tools=[],
+        system_context="",
     ))
 
-    assert result == []
+    assert result is None
 
 
-async def test_identify_returns_empty_on_stop_object() -> None:
-    _setup_llm(json.dumps({"stop": True}))
+async def test_identify_returns_none_on_malformed_response() -> None:
+    """When LLM returns useful: false with minimal JSON, step returns None."""
+    _setup_llm(json.dumps({"useful": False, "name": None, "description": None}))
 
-    traces = [
-        make_trace("t_0001", "GET", "https://cdn.example.com/font.woff", 200, 1000),
-    ]
+    target = make_trace("t_0001", "GET", "https://cdn.example.com/font.woff", 200, 1000)
     step = IdentifyCapabilitiesStep()
     result = await step.run(IdentifyInput(
-        correlations=[],
-        remaining_traces=traces,
+        remaining_traces=[target],
         base_url="https://cdn.example.com",
+        target_trace=target,
+        existing_tools=[],
+        system_context="",
     ))
 
-    assert result == []
+    assert result is None
 
 
 async def test_identify_no_tools_in_llm_call() -> None:
-    """Verify that the batch identify step does NOT use investigation tools."""
+    """Verify that the identify step does NOT pass tools to the LLM (lightweight call)."""
     captured_kwargs: list[dict[str, Any]] = []
 
     mock_client = MagicMock()
@@ -108,7 +97,7 @@ async def test_identify_no_tools_in_llm_call() -> None:
         resp = MagicMock()
         content_block = MagicMock()
         content_block.type = "text"
-        content_block.text = "[]"
+        content_block.text = json.dumps({"useful": False})
         resp.content = [content_block]
         resp.stop_reason = "end_turn"
         return resp
@@ -116,57 +105,37 @@ async def test_identify_no_tools_in_llm_call() -> None:
     mock_client.messages.create = mock_create
     llm.init(client=mock_client, model="test")
 
-    traces = [
-        make_trace("t_0001", "GET", "https://api.example.com/data", 200, 1000),
-    ]
+    target = make_trace("t_0001", "GET", "https://api.example.com/data", 200, 1000)
     step = IdentifyCapabilitiesStep()
     await step.run(IdentifyInput(
-        correlations=[],
-        remaining_traces=traces,
+        remaining_traces=[target],
         base_url="https://api.example.com",
+        target_trace=target,
+        existing_tools=[],
+        system_context="",
     ))
 
     assert len(captured_kwargs) == 1
-    # No tools should be passed to the LLM
-    assert "tools" not in captured_kwargs[0] or captured_kwargs[0]["tools"] is None
+    # Tools should NOT be passed (lightweight call)
+    assert "tools" not in captured_kwargs[0]
 
 
-async def test_identify_handles_single_object_response() -> None:
-    """LLM might return a single object instead of an array."""
-    _setup_llm(json.dumps({
-        "name": "search_routes",
-        "description": "Search for routes",
-        "trace_ids": ["t_0001"],
-    }))
-
-    traces = [
-        make_trace("t_0001", "POST", "https://api.example.com/search", 200, 1000),
-    ]
-    step = IdentifyCapabilitiesStep()
-    result = await step.run(IdentifyInput(
-        correlations=[],
-        remaining_traces=traces,
-        base_url="https://api.example.com",
-    ))
-
-    assert len(result) == 1
-    assert result[0].name == "search_routes"
-
-
-async def test_identify_enriched_trace_lines() -> None:
-    """Verify that trace summaries include content-type and body size."""
+async def test_identify_shows_existing_tools() -> None:
+    """Verify that existing tools are mentioned in the user prompt."""
     captured_prompt: list[str] = []
 
     mock_client = MagicMock()
 
     async def mock_create(**kwargs: Any) -> MagicMock:
-        messages = cast(list[dict[str, str]], kwargs.get("messages", []))
+        messages = cast(list[dict[str, Any]], kwargs.get("messages", []))
         if messages:
-            captured_prompt.append(str(messages[0].get("content", "")))
+            content = messages[0].get("content", "")
+            if isinstance(content, str):
+                captured_prompt.append(content)
         resp = MagicMock()
         content_block = MagicMock()
         content_block.type = "text"
-        content_block.text = "[]"
+        content_block.text = json.dumps({"useful": False})
         resp.content = [content_block]
         resp.stop_reason = "end_turn"
         return resp
@@ -174,27 +143,117 @@ async def test_identify_enriched_trace_lines() -> None:
     mock_client.messages.create = mock_create
     llm.init(client=mock_client, model="test")
 
-    from cli.formats.capture_bundle import Header
-
-    traces = [
-        make_trace(
-            "t_0001", "POST", "https://api.example.com/api/search", 200, 1000,
-            response_body=b'{"results": []}',
-            response_headers=[Header(name="Content-Type", value="application/json; charset=utf-8")],
+    existing = [
+        ToolDefinition(
+            name="search_routes",
+            description="Search for routes",
+            parameters={"type": "object", "properties": {}},
+            request=ToolRequest(method="POST", path="/api/search"),
         ),
     ]
+
+    target = make_trace("t_0003", "GET", "https://api.example.com/account", 200, 3000)
     step = IdentifyCapabilitiesStep()
     await step.run(IdentifyInput(
-        correlations=[],
-        remaining_traces=traces,
-        base_url="https://api.example.com/api",
+        remaining_traces=[target],
+        base_url="https://api.example.com",
+        target_trace=target,
+        existing_tools=existing,
+        system_context="",
     ))
 
     assert captured_prompt
     prompt = captured_prompt[0]
-    # Should show relative path (stripped base URL)
-    assert "/search" in prompt
-    # Should show content type
-    assert "application/json" in prompt
-    # Should show body size
-    assert "15B" in prompt
+    assert "search_routes" in prompt
+    assert "do NOT duplicate" in prompt
+
+
+async def test_identify_shows_request_details_inline() -> None:
+    """Verify that target trace request details are shown inline in the prompt."""
+    captured_prompt: list[str] = []
+
+    mock_client = MagicMock()
+
+    async def mock_create(**kwargs: Any) -> MagicMock:
+        messages = cast(list[dict[str, Any]], kwargs.get("messages", []))
+        if messages:
+            content = messages[0].get("content", "")
+            if isinstance(content, str):
+                captured_prompt.append(content)
+        resp = MagicMock()
+        content_block = MagicMock()
+        content_block.type = "text"
+        content_block.text = json.dumps({"useful": False})
+        resp.content = [content_block]
+        resp.stop_reason = "end_turn"
+        return resp
+
+    mock_client.messages.create = mock_create
+    llm.init(client=mock_client, model="test")
+
+    target = make_trace(
+        "t_0001", "POST", "https://api.example.com/api/search", 200, 1000,
+        request_body=json.dumps({"origin": "Paris", "destination": "Lyon"}).encode(),
+    )
+    step = IdentifyCapabilitiesStep()
+    await step.run(IdentifyInput(
+        remaining_traces=[target],
+        base_url="https://api.example.com",
+        target_trace=target,
+        existing_tools=[],
+        system_context="",
+    ))
+
+    assert captured_prompt
+    prompt = captured_prompt[0]
+    assert "t_0001" in prompt
+    assert "POST" in prompt
+    assert "api.example.com" in prompt
+    assert "Paris" in prompt
+    assert "Lyon" in prompt
+
+
+async def test_identify_includes_timeline_in_system() -> None:
+    """Verify that the timeline text is included in the system blocks, not the user prompt."""
+    captured_system: list[Any] = []
+
+    mock_client = MagicMock()
+
+    async def mock_create(**kwargs: Any) -> MagicMock:
+        if "system" in kwargs:
+            captured_system.append(kwargs["system"])
+        resp = MagicMock()
+        content_block = MagicMock()
+        content_block.type = "text"
+        content_block.text = json.dumps({"useful": False})
+        resp.content = [content_block]
+        resp.stop_reason = "end_turn"
+        return resp
+
+    mock_client.messages.create = mock_create
+    llm.init(client=mock_client, model="test")
+
+    timeline = (
+        '\U0001f5b1 [click] "Search" on https://example.com/home\n'
+        "\U0001f310 t_0001: POST /search \u2192 200 (application/json 15B)"
+    )
+
+    target = make_trace("t_0001", "POST", "https://api.example.com/api/search", 200, 1000)
+    step = IdentifyCapabilitiesStep()
+    await step.run(IdentifyInput(
+        remaining_traces=[target],
+        base_url="https://api.example.com/api",
+        target_trace=target,
+        existing_tools=[],
+        system_context=timeline,
+    ))
+
+    assert captured_system
+    system_blocks = captured_system[0]
+    # system_context is the first block
+    system_text = system_blocks[0]["text"]
+    assert "\U0001f310" in system_text
+    assert "\U0001f5b1" in system_text
+    assert "/search" in system_text
+    assert "[click]" in system_text
+    assert '"Search"' in system_text

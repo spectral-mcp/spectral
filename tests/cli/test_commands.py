@@ -72,9 +72,14 @@ def _make_mock_anthropic_module() -> MagicMock:
         mock_content.type = "text"
         mock_response.stop_reason = "end_turn"
         messages_raw = kwargs.get("messages")
-        messages = cast(list[dict[str, str]], messages_raw if isinstance(messages_raw, list) else [])
+        messages = cast(list[dict[str, Any]], messages_raw if isinstance(messages_raw, list) else [])
         first_msg = messages[0] if len(messages) > 0 else {}
-        msg: str = str(first_msg.get("content", ""))
+        raw = first_msg.get("content", "")
+        if isinstance(raw, list):
+            blocks = cast(list[dict[str, Any]], raw)
+            msg = "".join(b["text"] for b in blocks if b.get("type") == "text")
+        else:
+            msg = str(raw)
         if "base URL" in msg and "business API" in msg:
             mock_content.text = base_url_response
         elif "Group these observed URLs" in msg:
@@ -382,7 +387,11 @@ class TestDiscoverCommand:
 
 
 def _make_mcp_mock_anthropic() -> MagicMock:
-    """Create a mock anthropic module for MCP pipeline tests."""
+    """Create a mock anthropic module for MCP pipeline tests.
+
+    Handles the greedy per-trace pattern: identify per trace (no tools),
+    then build for useful ones (with tools).
+    """
     identify_call_count = 0
 
     async def mock_create(**kwargs: Any) -> MagicMock:
@@ -395,13 +404,25 @@ def _make_mcp_mock_anthropic() -> MagicMock:
         messages = cast(list[dict[str, Any]], kwargs.get("messages", []))
         prompt = ""
         for m in messages:
-            if isinstance(m, dict) and m.get("role") == "user":
+            if m.get("role") == "user":
                 c = m.get("content", "")
                 if isinstance(c, str):
                     prompt = c
                     break
+                if isinstance(c, list):
+                    blocks = cast(list[dict[str, Any]], c)
+                    prompt = "".join(b["text"] for b in blocks if b.get("type") == "text")
+                    break
+
+        # Also extract system text for routing
+        system_text = ""
+        system_raw = kwargs.get("system")
+        if isinstance(system_raw, list):
+            system_blocks = cast(list[dict[str, Any]], system_raw)
+            system_text = " ".join(b.get("text", "") for b in system_blocks)
 
         prompt_lower = prompt.lower()
+        full_text_lower = (prompt + " " + system_text).lower()
 
         if "base url" in prompt_lower and "business api" in prompt_lower:
             content_block.text = json.dumps({"base_url": "https://api.example.com"})
@@ -412,25 +433,29 @@ def _make_mcp_mock_anthropic() -> MagicMock:
                 "token_prefix": "Bearer",
                 "obtain_flow": "login_form",
             })
-        elif "identify" in prompt_lower and "business capabilit" in prompt_lower:
+        elif "target trace:" in prompt_lower and "business capability" in full_text_lower:
+            # Per-trace identify: first call -> useful, rest -> not useful
             identify_call_count += 1
             if identify_call_count == 1:
                 content_block.text = json.dumps({
+                    "useful": True,
                     "name": "list_users",
                     "description": "List users",
-                    "trace_ids": ["t_0001"],
                 })
             else:
-                content_block.text = json.dumps({"stop": True})
-        elif "building an mcp tool" in prompt_lower:
+                content_block.text = json.dumps({"useful": False})
+        elif "candidate:" in prompt_lower and "tool definition" in full_text_lower:
             content_block.text = json.dumps({
-                "name": "list_users",
-                "description": "List users",
-                "parameters": {"type": "object", "properties": {}},
-                "request": {"method": "GET", "path": "/api/users"},
+                "tool": {
+                    "name": "list_users",
+                    "description": "List users",
+                    "parameters": {"type": "object", "properties": {}},
+                    "request": {"method": "GET", "path": "/api/users"},
+                },
+                "consumed_trace_ids": ["t_0001"],
             })
         else:
-            content_block.text = json.dumps({"stop": True})
+            content_block.text = json.dumps({"useful": False})
 
         resp.content = [content_block]
         return resp
