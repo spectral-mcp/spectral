@@ -44,7 +44,10 @@ def compact_url(url: str) -> str:
             except ValueError:
                 pass
         compacted.append(seg)
-    return f"{parsed.scheme}://{parsed.netloc}{'/'.join(compacted)}"
+    path = "/".join(compacted)
+    if parsed.scheme:
+        return f"{parsed.scheme}://{parsed.netloc}{path}"
+    return path
 
 
 def truncate_json(obj: Any, max_keys: int = 10, max_depth: int = 4) -> Any:
@@ -93,7 +96,7 @@ _NOISE_HEADERS: frozenset[str] = frozenset({
     # Fetch metadata
     "sec-fetch-dest", "sec-fetch-mode", "sec-fetch-site",
     # Transport / low-value
-    "accept-encoding", "user-agent", "priority",
+    "accept-encoding", "priority",
 })
 
 
