@@ -351,7 +351,7 @@ These tools are available in both phases of each iteration.
 |------|-------|--------|---------|
 | `inspect_trace` | `trace_id` | Full trace: headers, decoded request body, decoded response body, status, timing | See the actual data in a specific request/response |
 | `infer_request_schema` | `trace_ids[]` | Merged JSON Schema of request bodies with `observed` values per field | See which request fields exist across traces, their types, and which values vary vs stay the same |
-| `find_traces` | `url_pattern` (optional, prefix or glob), `body_contains` (optional, substring match on request body) | List of matching trace IDs with method, URL, status, and first 200 chars of request body | Discover more examples — by URL for classic REST, by body content for single-endpoint APIs (REST.li, persisted GraphQL, RPC) where all requests hit the same URL and the operation is in the body |
+| `query_traces` | `expression` (jq string) | jq output (JSON) | Run arbitrary jq queries against all traces — filter by URL/path/status, extract body fields, aggregate across traces. Each trace has fields: `id`, `method`, `url`, `path`, `status`, `request_headers`, `request_body`, `response_body`. Output capped at 8000 chars to force precise queries |
 | `decode_base64` | base64 string | Decoded content | Existing tool — decode opaque values |
 | `decode_url` | percent-encoded string | Decoded string | Existing tool — decode URL components |
 | `decode_jwt` | JWT string | Header + payload | Existing tool — understand auth tokens |
