@@ -78,6 +78,131 @@ def _make_auth_mock_anthropic(script_response: str | None = None) -> MagicMock:
     return mock_module
 
 
+class TestAuthSet:
+    def test_auth_set_single_header(
+        self, sample_bundle: CaptureBundle, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        from cli.helpers.storage import load_token, store_capture
+
+        monkeypatch.setenv("SPECTRAL_HOME", str(tmp_path / "store"))
+        store_capture(sample_bundle, "testapp")
+
+        runner = CliRunner()
+        result = runner.invoke(
+            cli, ["auth", "set", "testapp", "-H", "Authorization: Bearer eyJ123"]
+        )
+
+        assert result.exit_code == 0, result.output
+        assert "Token saved" in result.output
+
+        token = load_token("testapp")
+        assert token is not None
+        assert token.headers == {"Authorization": "Bearer eyJ123"}
+
+    def test_auth_set_cookies_only(
+        self, sample_bundle: CaptureBundle, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        from cli.helpers.storage import load_token, store_capture
+
+        monkeypatch.setenv("SPECTRAL_HOME", str(tmp_path / "store"))
+        store_capture(sample_bundle, "testapp")
+
+        runner = CliRunner()
+        result = runner.invoke(
+            cli, ["auth", "set", "testapp", "-c", "a=1", "-c", "b=2"]
+        )
+
+        assert result.exit_code == 0, result.output
+        token = load_token("testapp")
+        assert token is not None
+        assert token.headers == {"Cookie": "a=1; b=2"}
+
+    def test_auth_set_headers_and_cookies(
+        self, sample_bundle: CaptureBundle, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        from cli.helpers.storage import load_token, store_capture
+
+        monkeypatch.setenv("SPECTRAL_HOME", str(tmp_path / "store"))
+        store_capture(sample_bundle, "testapp")
+
+        runner = CliRunner()
+        result = runner.invoke(
+            cli,
+            [
+                "auth", "set", "testapp",
+                "-H", "Authorization: Bearer tok",
+                "-c", "sid=abc",
+            ],
+        )
+
+        assert result.exit_code == 0, result.output
+        token = load_token("testapp")
+        assert token is not None
+        assert token.headers == {"Authorization": "Bearer tok", "Cookie": "sid=abc"}
+
+    def test_auth_set_interactive_fallback(
+        self, sample_bundle: CaptureBundle, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        from cli.helpers.storage import load_token, store_capture
+
+        monkeypatch.setenv("SPECTRAL_HOME", str(tmp_path / "store"))
+        store_capture(sample_bundle, "testapp")
+
+        runner = CliRunner()
+        result = runner.invoke(
+            cli, ["auth", "set", "testapp"], input="my-secret-token\n"
+        )
+
+        assert result.exit_code == 0, result.output
+        token = load_token("testapp")
+        assert token is not None
+        assert token.headers == {"Authorization": "Bearer my-secret-token"}
+
+    def test_auth_set_interactive_strips_bearer_prefix(
+        self, sample_bundle: CaptureBundle, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        from cli.helpers.storage import load_token, store_capture
+
+        monkeypatch.setenv("SPECTRAL_HOME", str(tmp_path / "store"))
+        store_capture(sample_bundle, "testapp")
+
+        runner = CliRunner()
+        result = runner.invoke(
+            cli, ["auth", "set", "testapp"], input="Bearer eyJ123\n"
+        )
+
+        assert result.exit_code == 0, result.output
+        token = load_token("testapp")
+        assert token is not None
+        assert token.headers == {"Authorization": "Bearer eyJ123"}
+
+    def test_auth_set_nonexistent_app(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        monkeypatch.setenv("SPECTRAL_HOME", str(tmp_path / "store"))
+        runner = CliRunner()
+        result = runner.invoke(cli, ["auth", "set", "nope", "-H", "X: Y"])
+
+        assert result.exit_code != 0
+        assert "not found" in result.output
+
+    def test_auth_set_invalid_header_format(
+        self, sample_bundle: CaptureBundle, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        from cli.helpers.storage import store_capture
+
+        monkeypatch.setenv("SPECTRAL_HOME", str(tmp_path / "store"))
+        store_capture(sample_bundle, "testapp")
+
+        runner = CliRunner()
+        result = runner.invoke(
+            cli, ["auth", "set", "testapp", "-H", "BadHeaderNoColon"]
+        )
+
+        assert result.exit_code != 0
+        assert "Invalid header format" in result.output
+
+
 class TestAuthAnalyze:
     def test_auth_analyze_writes_script(
         self, sample_bundle: CaptureBundle, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
