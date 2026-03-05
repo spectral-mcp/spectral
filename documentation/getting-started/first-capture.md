@@ -8,7 +8,7 @@ This guide walks you through capturing traffic from a web application using the 
 2. Click the Spectral extension icon in the toolbar to open the popup
 3. Click **Start Capture**
 
-The extension attaches a debugger to the active tab and begins recording all network traffic and UI interactions. The popup shows live statistics: HTTP request count, WebSocket connections and messages, UI event count, and elapsed time.
+The extension attaches a debugger to the active tab and begins recording all network traffic and UI interactions. The popup shows live statistics: request count, WebSocket message count, UI event count, and duration.
 
 ## Browse the application
 
@@ -17,7 +17,7 @@ Use the application as you normally would. Click through the main workflows you 
 - Every HTTP request and response (headers, bodies, timing)
 - WebSocket connections and messages
 - UI interactions: clicks, form inputs (values are not captured for privacy), form submissions, and page navigations
-- Rich page context with each interaction: visible headings, navigation links, form fields, table headers, and alerts
+- Rich page context with each interaction: visible headings, navigation links, form fields, table headers, alerts, and main text content
 
 The more workflows you exercise, the more complete the resulting API spec will be. Focus on the features that matter to your use case.
 
@@ -38,7 +38,7 @@ If the application uses GraphQL, the extension can automatically inject `__typen
 1. Click **Stop Capture** in the popup. The extension detaches the debugger.
 2. Click **Export Bundle**. The extension assembles a ZIP file and triggers a download.
 
-The bundle file is named `capture_<timestamp>.zip` and contains all recorded data in Spectral's custom format.
+The bundle file is named `capture_<domain>_<timestamp>.zip` and contains all recorded data in Spectral's custom format.
 
 ## Import into managed storage
 

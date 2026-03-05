@@ -9,7 +9,6 @@ The LLM adds business semantics that a purely mechanical tool cannot produce:
 | Field | Where it appears | Example |
 |-------|-----------------|---------|
 | Operation `summary` | Each path operation | "Retrieve monthly electricity consumption for the authenticated user" |
-| Operation `description` | Each path operation | Detailed explanation of what the endpoint does, when it's called, and what to expect |
 | Parameter `description` | Path and query parameters | "The billing period identifier in YYYY-MM format" |
 | Schema property `description` | Request/response schemas | "Total energy consumed in kilowatt-hours" |
 | Response `description` | Each status code | "Returns consumption data grouped by month with cost breakdown" |
@@ -22,9 +21,7 @@ Everything else comes directly from the captured traces without LLM involvement:
 - Request and response schemas (inferred from observed JSON bodies)
 - Path parameters (identified by the LLM during grouping, but typed mechanically)
 - Query parameters with types and observed values
-- Request headers
 - Response status codes
-- Security schemes (detected from Authorization headers, API keys, cookies)
 - Format annotations on string fields (dates, emails, UUIDs, URIs)
 
 ## Schema inference
@@ -45,13 +42,12 @@ The output follows the OpenAPI 3.1.0 specification. Key sections:
 
 | Section | Contents |
 |---------|----------|
-| `info` | API title and version |
+| `info` | API title, version, and description |
 | `servers` | Detected base URL |
 | `paths` | All endpoint patterns with operations |
-| `components.securitySchemes` | Detected auth mechanisms (Bearer, API key, Cookie, OAuth2) |
-| `security` | Global security requirement applied to all operations |
+| `components.schemas` | Reusable request/response schemas |
 
-Each operation includes `summary`, `description`, `parameters`, `requestBody` (when applicable), and `responses` with JSON schemas.
+Each operation includes `operationId`, `summary`, `tags` (derived from the first path segment), `parameters`, `requestBody` (when applicable), and `responses` with JSON schemas.
 
 ## Companion files
 

@@ -6,61 +6,38 @@ The `spectral auth analyze` command examines all captured traces to detect how t
 
 Auth analysis runs on **all** unfiltered traces, not just those matching the detected base URL. This is intentional — authentication providers often live on separate domains (Auth0, Okta, Cognito, Google accounts, etc.) and would be lost if only base URL traces were considered.
 
-The LLM examines request and response patterns to identify:
+The LLM receives a summary of all traces (with auth-related traces marked) and can inspect individual traces in detail using the `inspect_trace` tool. It identifies the authentication mechanism — login endpoints, token format, credential fields, refresh flows — and generates a Python script that reproduces the flow.
 
-| Field | Description |
-|-------|-------------|
-| Auth type | bearer_token, oauth2, cookie, basic, api_key, or none |
-| Obtain flow | How tokens are obtained: OAuth2 variants, login form, OTP/SMS, API key, social auth |
-| Token header | Which header carries the auth credential (Authorization, Cookie, X-API-Key, etc.) |
-| Token prefix | Prefix before the token value (Bearer, Basic, or none) |
-| Business process | Human-readable description of the authentication flow |
-| User journey | Step-by-step sequence of what the user does to authenticate |
-
-## Login and refresh detection
-
-When the LLM identifies a login endpoint, it extracts:
-
-- The endpoint URL and HTTP method
-- Credential fields with human descriptions (e.g., "your email address", "your password")
-- Extra constant fields sent with every login request (e.g., grant_type, country code)
-- The JSON path to the access token in the response
-- The JSON path to the refresh token, if present
-
-If a token refresh endpoint is detected, its URL, method, and field mapping are also extracted.
+Traces are flagged as auth-related when their URL contains auth keywords (login, token, oauth, etc.), when they carry an Authorization header, or when they returned a 401/403 status.
 
 ## Auth helper script
 
-When the detected auth flow is reproducible (has a clear login endpoint with known credential fields), `auth analyze` generates `auth_acquire.py` in the app's managed storage directory. The script is protocol-agnostic — it works for both REST and GraphQL APIs.
+When the LLM identifies a reproducible auth flow, `auth analyze` generates `auth_acquire.py` in the app's managed storage directory. If no authentication mechanism is found in the traces, no script is generated. The script is protocol-agnostic — it works for both REST and GraphQL APIs.
 
 ### Two-layer architecture
 
-The auth helper has two clearly separated layers:
+The auth system has two clearly separated layers:
 
-| Layer | Source | Responsibility |
-|-------|--------|---------------|
-| Token acquisition | LLM-generated | Performs the actual HTTP calls to authenticate (login endpoint, OTP flow, etc.) — a pure `acquire_token(credentials)` function and optionally `refresh_token(current_refresh_token)` |
-| Framework | Static, always identical | Token caching, expiry checking, credential prompting, Restish adapter, standalone token mode |
+| Layer | Location | Responsibility |
+|-------|----------|---------------|
+| Token acquisition | LLM-generated script (`auth_acquire.py`) | Defines `acquire_token()` (no arguments, prompts the user via injected helpers) and optionally `refresh_token(current_refresh_token)`. Performs the actual HTTP calls to authenticate |
+| Runtime framework | Spectral CLI (`cli/commands/mcp/auth.py`) | Loads the script as a module, injects `prompt_text` and `prompt_secret` helpers, calls the right function, converts the result to a `TokenState`, and writes `token.json` |
 
-This separation means the LLM only generates the API-specific authentication logic. Caching, expiry, prompting, and output modes are handled by the framework and never vary between APIs.
+This separation means the LLM only generates the API-specific authentication logic. Token persistence, expiry management, and prompt helpers are handled by the spectral runtime and never vary between APIs.
 
 ### Capabilities
 
 The generated script:
 
 - Uses only Python standard library modules (no pip dependencies)
-- Prompts the user interactively for credentials (via `/dev/tty`)
+- Receives `prompt_text(label)` and `prompt_secret(label)` helpers injected by the runtime, used to collect credentials interactively
 - Performs the full authentication flow, including multi-step flows (e.g., request OTP, then verify)
-- Checks token expiry (JWT `exp` claim or TTL fallback) and refreshes automatically when possible
+- Reproduces non-standard request headers observed in the captured traffic (User-Agent, app version, etc.) to avoid client-identity rejections
 
 The script is not run directly. Instead, use the managed auth commands: `spectral auth login` calls `acquire_token()`, `spectral auth refresh` calls `refresh_token()`, and both write the result to `token.json` in managed storage. For manual token injection, use `spectral auth set`.
 
-## Mechanical fallback
-
-If the LLM auth analysis fails or produces invalid output, `auth analyze` falls back to mechanical auth detection. This examines trace headers for common auth patterns (Authorization header with Bearer/Basic prefix, API key headers, session cookies) and produces a simpler AuthInfo without business descriptions or login/refresh configuration.
-
 ## Restish integration
 
-The `openapi analyze` command generates a Restish configuration (`<name>.restish.json`). When only static auth is detected (e.g., a fixed API key), the config includes placeholder values that the user must fill in manually. Auth scripts are managed separately via `auth analyze` and the `auth login`/`set`/`refresh` commands.
+The `openapi analyze` command generates a Restish configuration (`<name>.restish.json`). The generated config does not include authentication — auth is managed separately via `spectral auth analyze` (to generate the script) and the `spectral auth login`/`set`/`refresh` commands (to obtain and store tokens). The MCP server reads tokens from `token.json` at request time.
 
 See [Calling the API](../getting-started/calling-the-api.md) for details on using the generated configuration.

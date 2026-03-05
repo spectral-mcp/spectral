@@ -17,10 +17,11 @@ For GraphQL captures, use `spectral graphql analyze` instead. The command loads 
 The pipeline runs several steps, printing progress along the way:
 
 1. **Load** — Loads and merges all captures for the app, reports trace, WebSocket, and context counts
-2. **Detect base URL** — The LLM identifies the business API origin, filtering out CDN, analytics, and tracker domains
-3. **Filter** — Keeps only the traces that match the detected base URL
-4. **Protocol split** — Separates REST and GraphQL traces
-5. **Extraction** — Builds endpoint patterns (REST) or reconstructs types (GraphQL) from the raw traces
+2. **Extract pairs** — Collects all observed (method, URL) pairs from the traces
+3. **Detect base URL** — The LLM identifies the business API origin, filtering out CDN, analytics, and tracker domains
+4. **Filter** — Keeps only the traces that match the detected base URL
+5. **Protocol split** — Separates REST and GraphQL traces
+6. **Extraction** — Builds endpoint patterns (REST) or reconstructs types (GraphQL) from the raw traces
 6. **Enrichment** — Parallel LLM calls add business semantics: operation summaries, parameter descriptions, response explanations
 7. **Assembly** — Combines everything into the final output files
 
@@ -28,13 +29,13 @@ Authentication analysis is a separate step, run via `spectral auth analyze`. See
 
 ## Output files
 
-Depending on the protocols detected, the command produces some or all of these files:
+Each analyze command produces output specific to its protocol:
 
-| File | When produced | Contents |
-|------|---------------|----------|
-| `myapp-api.yaml` | REST traces found | OpenAPI 3.1 specification |
-| `myapp-api.graphql` | GraphQL traces found | SDL schema with type descriptions |
-| `myapp-api.restish.json` | REST traces found | Restish configuration entry for this API |
+| Command | File | Contents |
+|---------|------|----------|
+| `openapi analyze` | `<name>.yaml` | OpenAPI 3.1 specification |
+| `openapi analyze` | `<name>.restish.json` | Restish configuration entry for this API |
+| `graphql analyze` | `<name>.graphql` | SDL schema with type descriptions |
 
 ## Options
 

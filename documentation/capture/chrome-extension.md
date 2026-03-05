@@ -74,7 +74,7 @@ Both toggles are accessible in the popup UI during capture.
 
 ## SPA navigation
 
-For single-page applications, the content script persists across in-page navigations. For full-page navigations, Chrome automatically re-injects the content script via the extension's manifest configuration, so UI capture continues seamlessly.
+For single-page applications, the content script persists across in-page navigations. For full-page navigations, the background service worker detects the completed navigation via `chrome.tabs.onUpdated` and re-injects the content script using `chrome.scripting.executeScript`, so UI capture continues seamlessly.
 
 ## Context-to-trace correlation
 

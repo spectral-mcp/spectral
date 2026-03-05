@@ -45,7 +45,7 @@ uv run spectral android patch com.spotify.music.apk
 This produces `com.spotify.music-patched.apk` (or a `-patched/` directory for split APKs).
 
 !!! note
-    Patching requires `apktool` (for decompiling/recompiling) and `java` (for signing). The patched APK is signed with a debug key, so it cannot be installed alongside the original — uninstall the original first.
+    Patching requires `java` on the system PATH. The `apktool` and `uber-apk-signer` JARs are downloaded automatically on first use. The patched APK is signed with a debug key, so it cannot be installed alongside the original — uninstall the original first.
 
 ## Install the patched APK
 
@@ -67,7 +67,7 @@ Push the mitmproxy CA certificate to the device:
 uv run spectral android cert
 ```
 
-This copies `~/.mitmproxy/mitmproxy-ca-cert.pem` to the device's SD card. If you haven't run mitmproxy before, run it once to generate the certificate, then retry.
+This copies `~/.mitmproxy/mitmproxy-ca-cert.pem` to the device's SD card as a `.crt` file. You can pass a custom certificate path as an argument. If you haven't run mitmproxy before, run it once to generate the certificate, then retry.
 
 After pushing, install the certificate on the device: **Settings > Security > Install from storage > CA certificate**, then select the uploaded file.
 

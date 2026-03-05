@@ -40,6 +40,7 @@ The manifest contains session-level metadata:
 | `browser.name` | string | Browser name |
 | `browser.version` | string | Browser version |
 | `extension_version` | string | Extension version |
+| `capture_method` | string | How the capture was produced: `chrome_extension`, `proxy`, or `merged` |
 | `duration_ms` | integer | Capture duration in milliseconds |
 | `stats` | object | Counts: trace_count, ws_connection_count, ws_message_count, context_count |
 
@@ -57,10 +58,13 @@ Each trace has a stable string ID (`t_NNNN`) used for cross-referencing from con
 | `request.headers` | Array of `{name, value}` objects (arrays, not objects, because HTTP allows duplicate header names) |
 | `request.body_file` | Path to the companion `.bin` file |
 | `request.body_size` | Body size in bytes |
+| `request.body_encoding` | Body encoding if applicable (e.g., `base64`), or null |
 | `response.status` | HTTP status code |
+| `response.status_text` | HTTP status text (e.g., `OK`, `Not Found`) |
 | `response.headers` | Array of `{name, value}` objects |
 | `response.body_file` | Path to the companion `.bin` file |
 | `response.body_size` | Body size in bytes |
+| `response.body_encoding` | Body encoding if applicable, or null |
 | `timing` | Breakdown: dns_ms, connect_ms, tls_ms, send_ms, wait_ms, receive_ms, total_ms |
 | `initiator` | What triggered the request: type (script, parser, etc.), URL, line number |
 | `context_refs` | Array of context IDs active when this trace was captured |
@@ -69,7 +73,7 @@ Bodies are stored as separate binary files rather than inline JSON to avoid enco
 
 ## WebSocket data
 
-WebSocket connections have a metadata file with the connection URL, handshake trace reference, negotiated protocols, and message count. Each message has its own metadata file (direction, opcode, timestamp) and a binary payload file.
+WebSocket connections have a metadata file with the connection URL, handshake trace reference, negotiated protocols, message count, and context refs. Each message has its own metadata file (direction, opcode, timestamp, context refs) and a binary payload file.
 
 | Opcode values | Meaning |
 |---------------|---------|
@@ -90,7 +94,10 @@ Each context event captures what the user did and the state of the page at that 
 | `click` | Element details (tag, text, attributes, CSS selector, XPath), page URL, page content |
 | `input` | Field identity only (not the typed value, for privacy) |
 | `submit` | Form target element |
+| `scroll` | Scroll position change |
 | `navigate` | New URL (SPA navigation via pushState/replaceState/popstate) |
+
+Each context event also includes viewport information (width, height, scroll position).
 
 The page content snapshot includes visible headings (up to 10), navigation links (up to 15), main text content (up to 500 characters), forms with field identifiers (up to 5), table headers (up to 5), and alerts/notifications (up to 5).
 
