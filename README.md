@@ -1,5 +1,15 @@
 <p align="center">
-  <img src="assets/banner-wide.png" alt="Spectral" width="600">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/banner-wide-dark.png">
+    <source media="(prefers-color-scheme: light)" srcset="assets/banner-wide-light.png">
+    <img src="assets/banner-wide-dark.png" alt="Spectral" width="600">
+  </picture>
+</p>
+
+<p align="center">
+  <a href="https://romain-gilliotte.github.io/spectral/getting-started/installation/"><strong>Getting started</strong></a> &nbsp;&bull;&nbsp;
+  <a href="https://romain-gilliotte.github.io/spectral/reference/cli/"><strong>CLI reference</strong></a> &nbsp;&bull;&nbsp;
+  <a href="https://romain-gilliotte.github.io/spectral/"><strong>Full documentation</strong></a>
 </p>
 
 Turn any app into an API that Claude can use. Browse normally, Spectral figures out the API, then AI agents call it directly.
@@ -7,12 +17,6 @@ Turn any app into an API that Claude can use. Browse normally, Spectral figures 
 Want Claude to pay for your parking, pull numbers from your accounting software, or search listings on your city's classifieds site — without brittle browser automation? Most apps sit on undocumented APIs that work perfectly well. Spectral captures the traffic, has an LLM figure out what each call means, and turns it into tools that Claude can call.
 
 MCP tools work with any HTTP/JSON API regardless of protocol. Spectral can also generate formal API specs — OpenAPI 3.1 for REST APIs, SDL schemas for GraphQL — for human consumption and code generation.
-
-<p align="center">
-  <a href="https://romain-gilliotte.github.io/spectral/getting-started/installation/"><strong>Getting started</strong></a> &nbsp;&bull;&nbsp;
-  <a href="https://romain-gilliotte.github.io/spectral/reference/cli/"><strong>CLI reference</strong></a> &nbsp;&bull;&nbsp;
-  <a href="https://romain-gilliotte.github.io/spectral/"><strong>Full documentation</strong></a>
-</p>
 
 ## How it works
 
@@ -66,14 +70,14 @@ uv run spectral graphql analyze myapp -o myapp-api     # → myapp-api.graphql (
 
 ## Documentation
 
-| Guide | Description |
-|-------|-------------|
-| [Installation](https://romain-gilliotte.github.io/spectral/getting-started/installation/) | Setup: CLI, Chrome extension, native messaging |
-| [First capture](https://romain-gilliotte.github.io/spectral/getting-started/first-capture/) | Record traffic from a web app or mobile app |
-| [First analysis](https://romain-gilliotte.github.io/spectral/getting-started/first-analysis/) | Generate MCP tools from captured traffic |
-| [Calling the API](https://romain-gilliotte.github.io/spectral/getting-started/calling-the-api/) | Use the MCP server with Claude |
-| [CLI reference](https://romain-gilliotte.github.io/spectral/reference/cli/) | All commands and options |
-| [Auth detection](https://romain-gilliotte.github.io/spectral/analyze/auth-detection/) | How Spectral handles authentication |
+| Guide                                                                                           | Description                                    |
+| ----------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| [Installation](https://romain-gilliotte.github.io/spectral/getting-started/installation/)       | Setup: CLI, Chrome extension, native messaging |
+| [First capture](https://romain-gilliotte.github.io/spectral/getting-started/first-capture/)     | Record traffic from a web app or mobile app    |
+| [First analysis](https://romain-gilliotte.github.io/spectral/getting-started/first-analysis/)   | Generate MCP tools from captured traffic       |
+| [Calling the API](https://romain-gilliotte.github.io/spectral/getting-started/calling-the-api/) | Use the MCP server with Claude                 |
+| [CLI reference](https://romain-gilliotte.github.io/spectral/reference/cli/)                     | All commands and options                       |
+| [Auth detection](https://romain-gilliotte.github.io/spectral/analyze/auth-detection/)           | How Spectral handles authentication            |
 
 ## License
 
