@@ -36,8 +36,4 @@ The generated script:
 
 The script is not run directly. Instead, use the managed auth commands: `spectral auth login` calls `acquire_token()`, `spectral auth refresh` calls `refresh_token()`, and both write the result to `token.json` in managed storage. For manual token injection, use `spectral auth set`.
 
-## Restish integration
-
-The `openapi analyze` command generates a Restish configuration (`<name>.restish.json`). The generated config does not include authentication — auth is managed separately via `spectral auth analyze` (to generate the script) and the `spectral auth login`/`set`/`refresh` commands (to obtain and store tokens). The MCP server reads tokens from `token.json` at request time.
-
-See [Calling the API](../getting-started/calling-the-api.md) for details on using the generated configuration.
+The MCP server reads tokens from `token.json` at request time and injects them into every outgoing request. See [Calling the API](../getting-started/calling-the-api.md) for details.

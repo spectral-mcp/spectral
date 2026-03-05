@@ -19,12 +19,12 @@ spectral openapi analyze <app_name> -o <name> [--model MODEL] [--debug] [--skip-
 | Argument / Option | Required | Default | Description |
 |-------------------|----------|---------|-------------|
 | `app_name` | Yes | — | Name of the app in managed storage |
-| `-o, --output` | Yes | — | Output base name (produces `<name>.yaml` and `<name>.restish.json`) |
+| `-o, --output` | Yes | — | Output base name (produces `<name>.yaml`) |
 | `--model` | No | `claude-sonnet-4-5-20250929` | Anthropic model to use for LLM steps |
 | `--debug` | No | Off | Save LLM prompts and responses to `debug/<timestamp>/` |
 | `--skip-enrich` | No | Off | Skip LLM enrichment (faster, but no business descriptions) |
 
-The command loads all captures for the app and merges them into a single bundle before analysis. Only REST traces are processed; GraphQL traces are ignored. REST traces produce an OpenAPI 3.1 YAML file and a Restish configuration file.
+The command loads all captures for the app and merges them into a single bundle before analysis. Only REST traces are processed; GraphQL traces are ignored.
 
 Requires the `ANTHROPIC_API_KEY` environment variable (loaded automatically from `.env`).
 

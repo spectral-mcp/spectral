@@ -49,10 +49,6 @@ The output follows the OpenAPI 3.1.0 specification. Key sections:
 
 Each operation includes `operationId`, `summary`, `tags` (derived from the first path segment), `parameters`, `requestBody` (when applicable), and `responses` with JSON schemas.
 
-## Companion files
-
-In addition to the YAML spec, the analyze command produces:
-
-- **Restish config** (`<name>.restish.json`) — A configuration entry that registers the API with Restish, including the base URL and auth setup. See [Calling the API](../getting-started/calling-the-api.md).
+## Auth scripts
 
 Auth scripts are generated separately via `spectral auth analyze`. See [Auth detection](auth-detection.md).

@@ -5,9 +5,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Callable
 from datetime import datetime, timezone
-import json
 from pathlib import Path
-import re
 
 from cli.commands.analyze.steps.types import AnalysisResult
 from cli.commands.capture.types import CaptureBundle
@@ -123,7 +121,3 @@ def run_mcp_analysis(
         console.print(f"  Tool: {tool.name} — {tool.request.method} {tool.request.path}")
 
 
-def find_placeholders(entry: dict[str, object]) -> list[str]:
-    """Find placeholder values like <TOKEN> in a restish config entry."""
-    serialized = json.dumps(entry)
-    return re.findall(r"<[A-Z_]+>", serialized)

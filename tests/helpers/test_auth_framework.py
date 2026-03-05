@@ -283,49 +283,8 @@ class TestGetToken:
 
 
 # ---------------------------------------------------------------------------
-# restish_mode / token_mode
+# token_mode
 # ---------------------------------------------------------------------------
-
-class TestRestishMode:
-    def test_injects_auth_header(self, tmp_path: Path) -> None:
-        ns = _exec_framework()
-
-        # Set up module globals
-        ns["_API_NAME"] = "test-api"
-        ns["_CREDENTIAL_FIELDS"] = {}
-
-        # Mock cache to return a valid token
-        cache_path = tmp_path / "token.json"
-        future_exp = int(time.time()) + 3600
-        token = _make_jwt({"exp": future_exp})
-        cache_path.parent.mkdir(parents=True, exist_ok=True)
-        cache_path.write_text(json.dumps({
-            "token": token, "acquired_at": time.time()
-        }))
-
-        # Patch TokenCache to use our tmp_path
-        OrigCache: Any = ns["TokenCache"]
-        class MockCache(OrigCache):  # type: ignore[misc]
-            def __init__(self, api_name: str) -> None:
-                super().__init__(api_name)  # pyright: ignore[reportUnknownMemberType]
-                self._path = cache_path
-
-        ns["TokenCache"] = MockCache
-
-        request_json = json.dumps({"method": "GET", "uri": "/test", "headers": {}})
-
-        import io
-        with patch("sys.stdin", io.StringIO(request_json)), \
-             patch("sys.stdout", new_callable=io.StringIO) as mock_out:
-            ns["restish_mode"]("Authorization", "Bearer")
-            output = mock_out.getvalue()
-
-        result: dict[str, Any] = json.loads(output)
-        assert "Authorization" in result["headers"]
-        auth_value: list[str] = result["headers"]["Authorization"]
-        assert isinstance(auth_value, list)
-        assert auth_value[0].startswith("Bearer ")
-
 
 class TestTokenMode:
     def test_prints_token(self, tmp_path: Path) -> None:
@@ -374,8 +333,6 @@ class TestGenerateAuthScript:
             acquire_source=acquire_source,
             api_name="my-api",
             credential_fields={"email": "Your email", "password": "Your password"},
-            token_header="Authorization",
-            token_prefix="Bearer",
         )
         # Must compile without errors
         compile(script, "<test>", "exec")
@@ -405,7 +362,6 @@ class TestGenerateAuthScript:
         )
         assert "class TokenCache" in script
         assert "def main(" in script
-        assert "def restish_mode(" in script
         assert "def token_mode(" in script
 
     def test_contains_entry_point(self) -> None:
@@ -427,10 +383,3 @@ class TestGenerateAuthScript:
         assert "'email'" in script
         assert "'password'" in script
 
-    def test_restish_flag_documented(self) -> None:
-        script = generate_auth_script(
-            acquire_source="def acquire_token(creds):\n    return {'token': 'x'}\n",
-            api_name="test-api",
-            credential_fields={},
-        )
-        assert "--restish" in script

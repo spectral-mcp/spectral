@@ -44,7 +44,7 @@ The REST and GraphQL branches run concurrently via `asyncio.gather`.
 
 Each branch assembles its final output independently:
 
-- **REST** — Combines endpoint specs and enrichment into an OpenAPI 3.1 document. The Restish configuration file is generated separately by the `openapi analyze` command handler, outside the pipeline.
+- **REST** — Combines endpoint specs and enrichment into an OpenAPI 3.1 document.
 - **GraphQL** — Renders the TypeRegistry to an SDL schema string.
 
 Authentication analysis is not part of this pipeline. It runs as a separate command (`spectral auth analyze`) — see [Auth detection](auth-detection.md).

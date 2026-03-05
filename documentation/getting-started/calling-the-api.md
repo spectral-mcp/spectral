@@ -1,6 +1,6 @@
 # Calling the API
 
-After analyzing your captures, you have an API spec and can start making calls. This guide covers three approaches: MCP tools for AI agents, Restish for REST command-line use, and curl for manual requests.
+After analyzing your captures, you can start making API calls. This guide covers two approaches: MCP tools for AI agents, and curl for manual requests.
 
 ## Authentication setup
 
@@ -57,36 +57,7 @@ This writes tool definitions to managed storage. Start the MCP server to expose 
 uv run spectral mcp stdio
 ```
 
-Configure this command in your MCP client (Claude Desktop, Claude Code, etc.) as the stdio transport. The server exposes all app tools from managed storage, and handles authentication automatically using the stored token.
-
-## REST APIs with Restish
-
-### Install Restish
-
-[Restish](https://rest.sh/) is a CLI for interacting with REST APIs. It understands OpenAPI specs and provides tab completion and human-readable output.
-
-### Load the configuration
-
-The `openapi analyze` command produces a `<name>.restish.json` file containing a single API entry. Merge it into your Restish configuration:
-
-```bash
-restish api edit < myapp-api.restish.json
-```
-
-Alternatively, copy the entry manually into `~/.config/restish/apis.json`.
-
-### Make a call
-
-Once the API is registered, Restish discovers all operations from the OpenAPI spec:
-
-```bash
-restish myapp-api --help
-restish myapp-api get-user-profile
-```
-
-### Static auth with Restish
-
-If the generated Restish config contains placeholder values like `<TOKEN>` or `<API_KEY>`, replace them with actual credentials. Edit the configuration at any time with `restish api edit myapp-api`.
+Configure this command in your MCP client (Claude Desktop, Claude Code, etc.) as the stdio transport. The server exposes all app tools from managed storage and handles authentication automatically using the stored token. MCP tools work with any HTTP/JSON API regardless of the underlying protocol (REST, GraphQL, REST.li, custom RPC, etc.).
 
 ## GraphQL APIs with curl
 

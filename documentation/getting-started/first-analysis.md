@@ -1,16 +1,23 @@
 # First analysis
 
-This guide turns a capture bundle into an API specification.
+This guide turns a capture bundle into MCP tools or an API specification.
 
 ## Run the analysis
 
-Pass the app name to the `openapi analyze` command with an output base name:
+The primary command is `mcp analyze`, which generates MCP tool definitions from all captures for an app:
+
+```bash
+uv run spectral mcp analyze myapp
+```
+
+To generate formal API specs instead, use `openapi analyze` (REST) or `graphql analyze` (GraphQL) with an output base name:
 
 ```bash
 uv run spectral openapi analyze myapp -o myapp-api
+uv run spectral graphql analyze myapp -o myapp-api
 ```
 
-For GraphQL captures, use `spectral graphql analyze` instead. The command loads all captures for the app, merges them into a single bundle, and produces the appropriate output files.
+All commands load all captures for the app, merge them into a single bundle, and produce the appropriate output.
 
 ## What happens during analysis
 
@@ -31,11 +38,11 @@ Authentication analysis is a separate step, run via `spectral auth analyze`. See
 
 Each analyze command produces output specific to its protocol:
 
-| Command | File | Contents |
-|---------|------|----------|
-| `openapi analyze` | `<name>.yaml` | OpenAPI 3.1 specification |
-| `openapi analyze` | `<name>.restish.json` | Restish configuration entry for this API |
-| `graphql analyze` | `<name>.graphql` | SDL schema with type descriptions |
+| Command | Output | Contents |
+|---------|--------|----------|
+| `mcp analyze` | `tools/*.json` in managed storage | MCP tool definitions for any HTTP/JSON API |
+| `openapi analyze` | `<name>.yaml` | OpenAPI 3.1 specification (REST only) |
+| `graphql analyze` | `<name>.graphql` | SDL schema with type descriptions (GraphQL only) |
 
 ## Options
 
@@ -61,6 +68,6 @@ See [Debug mode](../analyze/debug-mode.md) for details on reading the debug outp
 
 ## Next steps
 
-- [Calling the API](calling-the-api.md) — use the generated spec and Restish config to make API calls
+- [Calling the API](calling-the-api.md) — use MCP tools or curl to make API calls
 - [REST output](../analyze/rest-output.md) — understand the OpenAPI spec in detail
 - [GraphQL output](../analyze/graphql-output.md) — understand the SDL schema in detail

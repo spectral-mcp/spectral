@@ -8,7 +8,7 @@
 
 - Package manager is **uv**. Use `uv run` to execute commands (no need to activate the venv):
   - `uv run pytest tests/` — run tests
-  - `uv run spectral openapi analyze ...` — run the CLI
+  - `uv run spectral mcp analyze ...` — run the CLI
   - `uv add <package>` — add a dependency (updates `pyproject.toml` + `uv.lock`)
   - `uv add --dev <package>` — add a dev dependency
 - `.env` file at project root holds `ANTHROPIC_API_KEY` (loaded by the CLI via `python-dotenv`). Do NOT commit `.env`.
@@ -71,9 +71,9 @@ spectral/
 
 ```bash
 # Analyze captures (requires ANTHROPIC_API_KEY)
+spectral mcp analyze <app>                          # → MCP tool definitions in storage
 spectral openapi analyze <app> -o <base>           # → <base>.yaml (OpenAPI 3.1)
 spectral graphql analyze <app> -o <base>            # → <base>.graphql (SDL schema)
-spectral mcp analyze <app>                          # → MCP tool definitions in storage
 
 # Auth management
 spectral auth analyze <app>                         # detect auth, generate script

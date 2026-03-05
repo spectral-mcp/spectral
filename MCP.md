@@ -17,10 +17,10 @@ This is protocol-agnostic by design. The tool definition stores a concrete reque
 | Aspect | Current (analyze) | New (MCP) |
 |--------|-------------------|-----------|
 | Output | OpenAPI YAML, GraphQL SDL | Tool definitions + auth script |
-| Consumer | Humans, Restish, code generators | Claude via MCP |
+| Consumer | Humans, code generators | Claude via MCP |
 | Protocol support | REST + GraphQL (with dedicated parsers) | Any HTTP-based protocol |
 | Response handling | Full schema inference | Raw response returned to LLM |
-| Auth | Standalone script + Restish config | Integrated into server, auto-refresh |
+| Auth | Standalone script | Integrated into server, auto-refresh |
 
 The existing analyze pipeline remains available for users who want formal documentation. The MCP path is an alternative output target, not a replacement.
 

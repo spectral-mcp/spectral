@@ -2,11 +2,11 @@
   <img src="assets/banner.png" alt="Spectral" width="600">
 </p>
 
-Reverse-engineer any app's private API. Browse normally, get a full spec — then use it to build AI agents and automations instead of brittle browser scripts.
+Turn any app into an API that Claude can use. Browse normally, Spectral figures out the API, then AI agents call it directly.
 
-Most apps sit on undocumented APIs that work perfectly well. But without a spec, people fall back to Playwright/Selenium/Puppeteer: slow, fragile, breaks on every UI change, can't handle mobile. Spectral captures the traffic, has an LLM figure out what each call means, and gives you a spec you can actually use.
+Want Claude to pay for your parking, pull numbers from your accounting software, or search listings on your city's classifieds site — without brittle browser automation? Most apps sit on undocumented APIs that work perfectly well. Spectral captures the traffic, has an LLM figure out what each call means, and turns it into tools that Claude can call.
 
-Supports both **REST** (outputs OpenAPI 3.1) and **GraphQL** (outputs SDL with inferred types). Can also generate **MCP tools** so AI agents can call the API directly.
+MCP tools work with any HTTP/JSON API regardless of protocol. Spectral can also generate formal API specs — OpenAPI 3.1 for REST APIs, SDL schemas for GraphQL — for human consumption and code generation.
 
 **[Documentation](https://romain-gilliotte.github.io/spectral/)**
 
@@ -14,7 +14,7 @@ Supports both **REST** (outputs OpenAPI 3.1) and **GraphQL** (outputs SDL with i
 
 1. **Capture** — Chrome extension (web) or MITM proxy records traffic + UI actions while you browse
 2. **Analyze** — LLM correlates UI actions with API calls, infers endpoint patterns, auth flow, and business meaning
-3. **Use** — Generated MCP tools let AI agents call the API. Auth scripts handle token acquisition automatically. Restish config works for command-line use
+3. **Use** — Start the MCP server. Claude calls the API directly, with auth handled automatically
 
 ## Quick start
 
@@ -37,21 +37,20 @@ uv run spectral capture add capture_20260213.zip -a myapp
 uv run spectral capture proxy -a myapp
 ```
 
-Analyze captures to produce an API spec, MCP tools, or auth scripts:
+Analyze captures, set up auth, and start the MCP server:
+
+```bash
+uv run spectral mcp analyze myapp                      # → MCP tool definitions
+uv run spectral auth analyze myapp                     # → auth script (acquire/refresh tokens)
+uv run spectral auth login myapp                       # interactive login
+uv run spectral mcp stdio                              # start MCP server for AI agents
+```
+
+Or generate API specs (REST/GraphQL only):
 
 ```bash
 uv run spectral openapi analyze myapp -o myapp-api    # → myapp-api.yaml (OpenAPI 3.1)
 uv run spectral graphql analyze myapp -o myapp-api     # → myapp-api.graphql (SDL schema)
-uv run spectral mcp analyze myapp                      # → MCP tool definitions
-uv run spectral auth analyze myapp                     # → auth script (acquire/refresh tokens)
-```
-
-Set up auth and start the MCP server:
-
-```bash
-uv run spectral auth login myapp                       # interactive login
-# or manually: spectral auth set myapp -H "Authorization: Bearer eyJ..."
-uv run spectral mcp stdio                              # start MCP server for AI agents
 ```
 
 See the [getting started guide](https://romain-gilliotte.github.io/spectral/getting-started/installation/) for detailed setup, or the [CLI reference](https://romain-gilliotte.github.io/spectral/reference/cli/) for all commands.
