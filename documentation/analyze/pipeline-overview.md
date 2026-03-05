@@ -27,7 +27,7 @@ These steps run in order on the full set of traces:
 
 ### Stage 2: Extraction and enrichment (parallel)
 
-The REST and GraphQL branches run concurrently via `asyncio.gather`. Auth analysis also runs in parallel with both branches.
+The REST and GraphQL branches run concurrently via `asyncio.gather`.
 
 #### REST branch
 
@@ -45,16 +45,14 @@ The REST and GraphQL branches run concurrently via `asyncio.gather`. Auth analys
 
 2. **Enrich types** — N parallel LLM calls, one per type. Each call receives the type's fields with their observed values and produces descriptions for the type and each field.
 
-#### Auth analysis
-
-Runs concurrently with both branches. The LLM examines **all** unfiltered traces (not just those matching the base URL) to detect the authentication mechanism. This is important because auth providers often live on different domains (Auth0, Okta, Cognito, Google accounts).
-
 ### Stage 3: Assembly (sequential)
 
 Each branch assembles its final output independently:
 
-- **REST** — Combines endpoint specs, auth info, and enrichment into an OpenAPI 3.1 YAML document, a Restish configuration file, and optionally an auth helper script.
+- **REST** — Combines endpoint specs and enrichment into an OpenAPI 3.1 YAML document and a Restish configuration file.
 - **GraphQL** — Renders the TypeRegistry to an SDL schema string.
+
+Authentication analysis is not part of this pipeline. It runs as a separate command (`spectral auth analyze`) — see [Auth detection](auth-detection.md).
 
 ## LLM-first vs. mechanical-first
 

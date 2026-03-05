@@ -102,8 +102,8 @@ Default model is `claude-sonnet-4-5-20250929`. Options: `--model`, `--skip-enric
 | Component | Dependencies |
 |-----------|-------------|
 | Extension | JSZip (bundled) |
-| CLI | click, pydantic, anthropic, graphql-core, pyyaml, rich, python-dotenv, requests, mitmproxy, jq |
-| Dev | pytest, pytest-cov, pytest-asyncio (asyncio_mode="auto"), pyright, ruff |
+| CLI | click, pydantic, anthropic, graphql-core, pyyaml, rich, python-dotenv, requests, mitmproxy, jq, compact-json, mcp |
+| Dev | pytest, pytest-cov, pytest-asyncio (asyncio_mode="auto"), pyright, ruff, mkdocs-material |
 
 ## Managed storage
 

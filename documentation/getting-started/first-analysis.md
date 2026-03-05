@@ -22,8 +22,9 @@ The pipeline runs several steps, printing progress along the way:
 4. **Protocol split** — Separates REST and GraphQL traces
 5. **Extraction** — Builds endpoint patterns (REST) or reconstructs types (GraphQL) from the raw traces
 6. **Enrichment** — Parallel LLM calls add business semantics: operation summaries, parameter descriptions, response explanations
-7. **Auth analysis** — A separate LLM call examines all traces (including those outside the base URL) to detect the authentication mechanism
-8. **Assembly** — Combines everything into the final output files
+7. **Assembly** — Combines everything into the final output files
+
+Authentication analysis is a separate step, run via `spectral auth analyze`. See [Auth detection](../analyze/auth-detection.md) for details.
 
 ## Output files
 
@@ -34,7 +35,6 @@ Depending on the protocols detected, the command produces some or all of these f
 | `myapp-api.yaml` | REST traces found | OpenAPI 3.1 specification |
 | `myapp-api.graphql` | GraphQL traces found | SDL schema with type descriptions |
 | `myapp-api.restish.json` | REST traces found | Restish configuration entry for this API |
-| `myapp-api-auth.py` | Auth detected and analyzable | Standalone Python auth helper script |
 
 ## Options
 

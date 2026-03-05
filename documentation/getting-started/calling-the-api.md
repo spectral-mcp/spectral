@@ -1,117 +1,112 @@
 # Calling the API
 
-After running `spectral openapi analyze` or `spectral graphql analyze`, you have an API spec and configuration files. This guide shows how to use them to actually call the API from the command line.
+After analyzing your captures, you have an API spec and can start making calls. This guide covers three approaches: MCP tools for AI agents, Restish for REST command-line use, and curl for manual requests.
+
+## Authentication setup
+
+Before calling the API, set up authentication. Spectral provides two paths depending on your situation.
+
+### Generated auth script
+
+If the app uses an interactive login flow (username/password, OAuth, OTP), generate an auth script and use it to log in:
+
+```bash
+uv run spectral auth analyze myapp
+uv run spectral auth login myapp
+```
+
+The `auth analyze` command examines all captures for auth-related patterns and generates an `auth_acquire.py` script in managed storage. The `auth login` command runs that script, prompts for credentials, and stores the resulting token in `token.json`.
+
+When the token expires, refresh it or log in again:
+
+```bash
+uv run spectral auth refresh myapp    # if a refresh endpoint was detected
+uv run spectral auth login myapp      # re-authenticate from scratch
+```
+
+### Manual token injection
+
+If the generated auth script does not work, or you already have a token, inject it directly:
+
+```bash
+uv run spectral auth set myapp -H "Authorization: Bearer eyJ..."
+uv run spectral auth set myapp -c "session=abc123"
+```
+
+If neither `--header` nor `--cookie` is given, the command prompts for a token interactively.
+
+To clear stored credentials:
+
+```bash
+uv run spectral auth logout myapp
+```
+
+## MCP tools (AI agents)
+
+The primary way to use a discovered API is through MCP tools, which let AI agents call the API directly.
+
+Generate tool definitions from captures:
+
+```bash
+uv run spectral mcp analyze myapp
+```
+
+This writes tool definitions to managed storage. Start the MCP server to expose them:
+
+```bash
+uv run spectral mcp stdio
+```
+
+Configure this command in your MCP client (Claude Desktop, Claude Code, etc.) as the stdio transport. The server exposes all app tools from managed storage, and handles authentication automatically using the stored token.
 
 ## REST APIs with Restish
 
 ### Install Restish
 
-[Restish](https://rest.sh/) is a CLI for interacting with REST APIs. It understands OpenAPI specs and provides tab completion, authentication, and human-readable output.
-
-=== "macOS"
-
-    ```bash
-    brew install danielgtaylor/restish/restish
-    ```
-
-=== "Go"
-
-    ```bash
-    go install github.com/danielgtaylor/restish@latest
-    ```
+[Restish](https://rest.sh/) is a CLI for interacting with REST APIs. It understands OpenAPI specs and provides tab completion and human-readable output.
 
 ### Load the configuration
 
-The analyze command produces a `<name>.restish.json` file containing a single API entry. Merge it into your Restish configuration:
+The `openapi analyze` command produces a `<name>.restish.json` file containing a single API entry. Merge it into your Restish configuration:
 
 ```bash
 restish api edit < myapp-api.restish.json
 ```
 
-Alternatively, copy the entry manually into `~/.config/restish/apis.json` under a key of your choice (the analyze command uses the output name).
+Alternatively, copy the entry manually into `~/.config/restish/apis.json`.
 
-### List available operations
+### Make a call
 
 Once the API is registered, Restish discovers all operations from the OpenAPI spec:
 
 ```bash
 restish myapp-api --help
-```
-
-This lists every operation with its summary and HTTP method. Use tab completion to explore endpoints.
-
-### Make a first call
-
-Pick an operation from the list and call it:
-
-```bash
 restish myapp-api get-user-profile
 ```
 
-Restish sends the request with the configured base URL and authentication, then displays the response with syntax highlighting.
+### Static auth with Restish
 
-## GraphQL APIs
+If the generated Restish config contains placeholder values like `<TOKEN>` or `<API_KEY>`, replace them with actual credentials. Edit the configuration at any time with `restish api edit myapp-api`.
 
-GraphQL output is a `.graphql` SDL schema file. Since Restish only supports REST, GraphQL APIs use the auth helper script directly.
+## GraphQL APIs with curl
 
-### Get a token
-
-When the analyze command detects an authentication flow, it generates an auth helper (`<name>-auth.py`) that works independently of Restish. Run it to get a valid token:
-
-```bash
-python3 myapp-auth.py
-```
-
-The script prompts for credentials on first use, caches the token, and prints it to stdout. On subsequent runs it reuses the cached token until it expires.
-
-### Use with curl
-
-Pass the token in an Authorization header:
+GraphQL output is a `.graphql` SDL schema file. Use the stored token with curl or any GraphQL client:
 
 ```bash
 curl -X POST https://api.example.com/graphql \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $(python3 myapp-auth.py)" \
+  -H "Authorization: Bearer <token>" \
   -d '{"query": "{ viewer { name } }"}'
 ```
 
-### Use with other GraphQL clients
-
-Any client that accepts a token or custom headers can use the auth helper. The pattern is always the same: invoke `python3 <name>-auth.py` and capture its stdout as the token value.
-
-## Authentication
-
-### Interactive auth (auth helper script)
-
-When the analyze command detects an authentication flow it can reproduce, it generates a Python auth helper script (`<name>-auth.py`). This script works for both REST and GraphQL APIs.
-
-On first use, the script prompts you for credentials (username, password, OTP code, etc.) via the terminal. It performs the full authentication flow, caches the resulting token, and returns it.
-
-On subsequent uses, the script reuses the cached token. When the token expires, it either refreshes it automatically (if a refresh endpoint was detected) or prompts you again.
-
-For REST APIs using Restish, the Restish configuration references the script as an external tool (invoked with the `--restish` flag). For GraphQL and other use cases, run the script directly — it prints the token to stdout.
-
-!!! info
-    The auth script reads user input from `/dev/tty` rather than stdin, so it works correctly both when called directly and when invoked by Restish (which uses stdin to pipe the request JSON).
-
-Token cache location: `~/.cache/spectral/<api-name>/token.json`.
-
-### Static auth (manual placeholders)
-
-If the generated Restish config contains placeholder values like `<TOKEN>` or `<API_KEY>`, replace them with actual credentials. The analyze command prints a warning listing any placeholders that need filling in.
-
-You can edit the API configuration at any time:
-
-```bash
-restish api edit myapp-api
-```
+The token value can be found in the app's `token.json` in managed storage, or use MCP tools which handle authentication automatically.
 
 ## Troubleshooting
 
-If a call returns an authentication error (401 or 403), the token may have expired. Delete the cached token to force re-authentication:
+If a call returns an authentication error (401 or 403), the token may have expired. Force re-authentication:
 
 ```bash
-rm ~/.cache/spectral/myapp-api/token.json
+uv run spectral auth refresh myapp    # try refresh first
+uv run spectral auth login myapp      # or re-authenticate
+uv run spectral auth logout myapp     # clear and start over
 ```
-
-If the auth helper script fails entirely, you can fall back to static auth: remove the `external-tool` auth configuration from Restish and set the token header manually.

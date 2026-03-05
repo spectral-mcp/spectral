@@ -1,6 +1,6 @@
 # Auth detection
 
-The analyze command includes a dedicated auth analysis step that examines all captured traces to detect how the application authenticates.
+The `spectral auth analyze` command examines all captured traces to detect how the application authenticates and generates a script to reproduce the flow.
 
 ## How it works
 
@@ -31,7 +31,7 @@ If a token refresh endpoint is detected, its URL, method, and field mapping are 
 
 ## Auth helper script
 
-When the detected auth flow is reproducible (has a clear login endpoint with known credential fields), the pipeline generates a standalone Python auth helper script (`<name>-auth.py`). The script is protocol-agnostic — it works for both REST and GraphQL APIs.
+When the detected auth flow is reproducible (has a clear login endpoint with known credential fields), `auth analyze` generates `auth_acquire.py` in the app's managed storage directory. The script is protocol-agnostic — it works for both REST and GraphQL APIs.
 
 ### Two-layer architecture
 
@@ -51,26 +51,16 @@ The generated script:
 - Uses only Python standard library modules (no pip dependencies)
 - Prompts the user interactively for credentials (via `/dev/tty`)
 - Performs the full authentication flow, including multi-step flows (e.g., request OTP, then verify)
-- Caches the token to `~/.cache/spectral/<api-name>/token.json`
 - Checks token expiry (JWT `exp` claim or TTL fallback) and refreshes automatically when possible
 
-### Two modes
-
-The script supports two invocation modes:
-
-| Mode | Command | Behavior |
-|------|---------|----------|
-| Default (token) | `python3 <name>-auth.py` | Prints a valid token to stdout — for use with curl, GraphQL clients, scripting, any tool |
-| Restish | `python3 <name>-auth.py --restish` | Restish external-tool contract: reads JSON from stdin, injects auth header, writes JSON to stdout |
-
-The default mode makes the auth helper useful beyond Restish. Any tool or script that needs a token can call the helper and capture its stdout.
+The script is not run directly. Instead, use the managed auth commands: `spectral auth login` calls `acquire_token()`, `spectral auth refresh` calls `refresh_token()`, and both write the result to `token.json` in managed storage. For manual token injection, use `spectral auth set`.
 
 ## Mechanical fallback
 
-If the LLM auth analysis fails or produces invalid output, the pipeline falls back to mechanical auth detection. This examines trace headers for common auth patterns (Authorization header with Bearer/Basic prefix, API key headers, session cookies) and produces a simpler AuthInfo without business descriptions or login/refresh configuration.
+If the LLM auth analysis fails or produces invalid output, `auth analyze` falls back to mechanical auth detection. This examines trace headers for common auth patterns (Authorization header with Bearer/Basic prefix, API key headers, session cookies) and produces a simpler AuthInfo without business descriptions or login/refresh configuration.
 
 ## Restish integration
 
-The generated Restish configuration (`<name>.restish.json`) includes the auth setup. When an auth helper script was generated, the config references it as an `external-tool` auth provider with the `--restish` flag. When only static auth was detected (e.g., a fixed API key), the config includes placeholder values that the user must fill in manually.
+The `openapi analyze` command generates a Restish configuration (`<name>.restish.json`). When only static auth is detected (e.g., a fixed API key), the config includes placeholder values that the user must fill in manually. Auth scripts are managed separately via `auth analyze` and the `auth login`/`set`/`refresh` commands.
 
 See [Calling the API](../getting-started/calling-the-api.md) for details on using the generated configuration.

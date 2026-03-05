@@ -58,4 +58,5 @@ Each operation includes `summary`, `description`, `parameters`, `requestBody` (w
 In addition to the YAML spec, the analyze command produces:
 
 - **Restish config** (`<name>.restish.json`) — A configuration entry that registers the API with Restish, including the base URL and auth setup. See [Calling the API](../getting-started/calling-the-api.md).
-- **Auth helper** (`<name>-auth.py`) — When the LLM detects a reproducible auth flow, it generates a standalone Python script that handles login, token caching, and refresh. See [Auth detection](auth-detection.md).
+
+Auth scripts are generated separately via `spectral auth analyze`. See [Auth detection](auth-detection.md).
