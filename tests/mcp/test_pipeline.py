@@ -16,7 +16,7 @@ from cli.formats.capture_bundle import (
     Timeline,
     TimelineEvent,
 )
-import cli.helpers.llm as llm
+from cli.helpers.llm._client import setup_client
 from tests.conftest import make_context, make_trace
 
 
@@ -164,7 +164,7 @@ def _setup_pipeline_llm() -> None:
         return resp
 
     mock_client.messages.create = mock_create
-    llm.init(client=mock_client, model="test")
+    setup_client(mock_client)
 
 
 async def test_pipeline_extracts_tools() -> None:

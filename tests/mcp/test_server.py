@@ -1,4 +1,5 @@
 """Tests for MCP server."""
+# pyright: reportPrivateUsage=false
 
 from __future__ import annotations
 

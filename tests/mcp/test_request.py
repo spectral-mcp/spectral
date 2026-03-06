@@ -1,6 +1,9 @@
 """Tests for MCP request construction."""
+# pyright: reportUnusedVariable=false
 
 from __future__ import annotations
+
+from typing import Any
 
 from cli.commands.mcp.request import (
     build_request,
@@ -85,15 +88,15 @@ class TestResolveBody:
 
 
 class TestBuildRequest:
-    def _make_tool(self, **kwargs: object) -> ToolDefinition:
-        defaults = {
+    def _make_tool(self, **kwargs: Any) -> ToolDefinition:
+        defaults: dict[str, Any] = {
             "name": "test_tool",
             "description": "A test tool",
             "parameters": {"type": "object", "properties": {}},
             "request": ToolRequest(method="GET", path="/api/test"),
         }
         defaults.update(kwargs)
-        return ToolDefinition(**defaults)  # type: ignore[arg-type]
+        return ToolDefinition(**defaults)
 
     def test_simple_get(self) -> None:
         tool = self._make_tool()

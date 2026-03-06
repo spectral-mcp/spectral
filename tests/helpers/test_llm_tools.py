@@ -5,6 +5,13 @@ from __future__ import annotations
 
 import json
 
+from cli.commands.capture.types import CaptureBundle, Context, Trace
+from cli.formats.capture_bundle import (
+    AppInfo,
+    CaptureManifest,
+    CaptureStats,
+    Timeline,
+)
 from cli.helpers.http import sanitize_headers
 from cli.helpers.llm.tools import make_tools
 from cli.helpers.llm.tools._infer_request_schema import (
@@ -39,6 +46,22 @@ def _sample_traces():
             response_body=b'{"id": 123, "name": "Alice"}',
         ),
     ]
+
+
+def _make_bundle(traces: list[Trace] | None = None, contexts: list[Context] | None = None) -> CaptureBundle:
+    """Build a minimal CaptureBundle for tests."""
+    return CaptureBundle(
+        manifest=CaptureManifest(
+            capture_id="test",
+            created_at="2026-01-01T00:00:00Z",
+            app=AppInfo(name="T", base_url="http://localhost", title="T"),
+            duration_ms=10000,
+            stats=CaptureStats(),
+        ),
+        traces=traces or [],
+        contexts=contexts or [],
+        timeline=Timeline(),
+    )
 
 
 class TestInspectRequest:
@@ -223,11 +246,12 @@ class TestInspectContext:
 class TestMakeTools:
     def test_tool_set_completeness(self) -> None:
         traces = _sample_traces()
+        bundle = _make_bundle(traces=traces)
         tools, executors = make_tools(
             ["decode_base64", "decode_url", "decode_jwt",
              "inspect_request", "inspect_trace",
              "infer_request_schema", "query_traces"],
-            traces=traces,
+            bundle=bundle,
         )
 
         tool_names = {t["name"] for t in tools}
@@ -246,13 +270,13 @@ class TestMakeTools:
     def test_includes_inspect_context_with_contexts(self) -> None:
         traces = _sample_traces()
         contexts = [make_context("c_0001", 1000)]
+        bundle = _make_bundle(traces=traces, contexts=contexts)
         tools, executors = make_tools(
             ["decode_base64", "decode_url", "decode_jwt",
              "inspect_request", "inspect_trace",
              "infer_request_schema", "query_traces",
              "inspect_context"],
-            traces=traces,
-            contexts=contexts,
+            bundle=bundle,
         )
 
         tool_names = {t["name"] for t in tools}

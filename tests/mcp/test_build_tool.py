@@ -8,10 +8,32 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from cli.commands.capture.types import CaptureBundle, Context, Trace
 from cli.commands.mcp.build_tool import _collect_param_refs, build_tool
 from cli.commands.mcp.types import ToolBuildInput, ToolCandidate
-import cli.helpers.llm as llm
+from cli.formats.capture_bundle import (
+    AppInfo,
+    CaptureManifest,
+    CaptureStats,
+    Timeline,
+)
+from cli.helpers.llm._client import setup_client
 from tests.conftest import make_trace
+
+
+def _make_bundle(traces: list[Trace] | None = None, contexts: list[Context] | None = None) -> CaptureBundle:
+    return CaptureBundle(
+        manifest=CaptureManifest(
+            capture_id="test",
+            created_at="2026-01-01T00:00:00Z",
+            app=AppInfo(name="T", base_url="http://localhost", title="T"),
+            duration_ms=10000,
+            stats=CaptureStats(),
+        ),
+        traces=traces or [],
+        contexts=contexts or [],
+        timeline=Timeline(),
+    )
 
 
 def _setup_llm(response_text: str) -> None:
@@ -27,7 +49,7 @@ def _setup_llm(response_text: str) -> None:
         return resp
 
     mock_client.messages.create = mock_create
-    llm.init(client=mock_client, model="test")
+    setup_client(mock_client)
 
 
 async def test_build_valid_tool() -> None:
@@ -65,8 +87,7 @@ async def test_build_valid_tool() -> None:
 
     result = await build_tool(ToolBuildInput(
         candidate=ToolCandidate("search_routes", "Search routes", ["t_0001"]),
-        traces=traces,
-        contexts=[],
+        bundle=_make_bundle(traces=traces),
         base_url="https://api.example.com",
         existing_tools=[],
         system_context="",
@@ -107,8 +128,7 @@ async def test_build_tool_minimal_params() -> None:
 
     result = await build_tool(ToolBuildInput(
         candidate=ToolCandidate("search_routes", "Search routes", ["t_0001"]),
-        traces=traces,
-        contexts=[],
+        bundle=_make_bundle(traces=traces),
         base_url="https://api.example.com",
         existing_tools=[],
         system_context="",
@@ -144,8 +164,7 @@ async def test_build_tool_with_path_params() -> None:
 
     result = await build_tool(ToolBuildInput(
         candidate=ToolCandidate("get_user", "Get user", ["t_0001"]),
-        traces=traces,
-        contexts=[],
+        bundle=_make_bundle(traces=traces),
         base_url="https://api.example.com",
         existing_tools=[],
         system_context="",
@@ -172,8 +191,7 @@ async def test_build_tool_validation_missing_param() -> None:
     with pytest.raises(ValueError, match="Path params not in parameters"):
         await build_tool(ToolBuildInput(
             candidate=ToolCandidate("get_user", "Get user", ["t_0001"]),
-            traces=traces,
-            contexts=[],
+            bundle=_make_bundle(traces=traces),
             base_url="https://api.example.com",
             existing_tools=[],
             system_context="",

@@ -6,11 +6,33 @@ import json
 from typing import Any, cast
 from unittest.mock import MagicMock
 
+from cli.commands.capture.types import CaptureBundle, Trace
 from cli.commands.mcp.identify import identify_capabilities
 from cli.commands.mcp.types import IdentifyInput
+from cli.formats.capture_bundle import (
+    AppInfo,
+    CaptureManifest,
+    CaptureStats,
+    Timeline,
+)
 from cli.formats.mcp_tool import ToolDefinition, ToolRequest
-import cli.helpers.llm as llm
+from cli.helpers.llm._client import setup_client
 from tests.conftest import make_trace
+
+
+def _make_bundle(traces: list[Trace] | None = None) -> CaptureBundle:
+    return CaptureBundle(
+        manifest=CaptureManifest(
+            capture_id="test",
+            created_at="2026-01-01T00:00:00Z",
+            app=AppInfo(name="T", base_url="http://localhost", title="T"),
+            duration_ms=10000,
+            stats=CaptureStats(),
+        ),
+        traces=traces or [],
+        contexts=[],
+        timeline=Timeline(),
+    )
 
 
 def _setup_llm(response_text: str) -> None:
@@ -26,7 +48,7 @@ def _setup_llm(response_text: str) -> None:
         return resp
 
     mock_client.messages.create = mock_create
-    llm.init(client=mock_client, model="test")
+    setup_client(mock_client)
 
 
 async def test_identify_returns_candidate_when_useful() -> None:
@@ -39,7 +61,7 @@ async def test_identify_returns_candidate_when_useful() -> None:
     target = make_trace("t_0001", "POST", "https://api.example.com/search", 200, 1000)
 
     result = await identify_capabilities(IdentifyInput(
-        remaining_traces=[target],
+        bundle=_make_bundle([target]),
         base_url="https://api.example.com",
         target_trace=target,
         existing_tools=[],
@@ -57,7 +79,7 @@ async def test_identify_returns_none_when_not_useful() -> None:
 
     target = make_trace("t_0001", "GET", "https://cdn.example.com/font.woff", 200, 1000)
     result = await identify_capabilities(IdentifyInput(
-        remaining_traces=[target],
+        bundle=_make_bundle([target]),
         base_url="https://cdn.example.com",
         target_trace=target,
         existing_tools=[],
@@ -73,7 +95,7 @@ async def test_identify_returns_none_on_malformed_response() -> None:
 
     target = make_trace("t_0001", "GET", "https://cdn.example.com/font.woff", 200, 1000)
     result = await identify_capabilities(IdentifyInput(
-        remaining_traces=[target],
+        bundle=_make_bundle([target]),
         base_url="https://cdn.example.com",
         target_trace=target,
         existing_tools=[],
@@ -100,11 +122,11 @@ async def test_identify_no_tools_in_llm_call() -> None:
         return resp
 
     mock_client.messages.create = mock_create
-    llm.init(client=mock_client, model="test")
+    setup_client(mock_client)
 
     target = make_trace("t_0001", "GET", "https://api.example.com/data", 200, 1000)
     await identify_capabilities(IdentifyInput(
-        remaining_traces=[target],
+        bundle=_make_bundle([target]),
         base_url="https://api.example.com",
         target_trace=target,
         existing_tools=[],
@@ -137,7 +159,7 @@ async def test_identify_shows_existing_tools() -> None:
         return resp
 
     mock_client.messages.create = mock_create
-    llm.init(client=mock_client, model="test")
+    setup_client(mock_client)
 
     existing = [
         ToolDefinition(
@@ -150,7 +172,7 @@ async def test_identify_shows_existing_tools() -> None:
 
     target = make_trace("t_0003", "GET", "https://api.example.com/account", 200, 3000)
     await identify_capabilities(IdentifyInput(
-        remaining_traces=[target],
+        bundle=_make_bundle([target]),
         base_url="https://api.example.com",
         target_trace=target,
         existing_tools=existing,
@@ -184,14 +206,14 @@ async def test_identify_shows_request_details_inline() -> None:
         return resp
 
     mock_client.messages.create = mock_create
-    llm.init(client=mock_client, model="test")
+    setup_client(mock_client)
 
     target = make_trace(
         "t_0001", "POST", "https://api.example.com/api/search", 200, 1000,
         request_body=json.dumps({"origin": "Paris", "destination": "Lyon"}).encode(),
     )
     await identify_capabilities(IdentifyInput(
-        remaining_traces=[target],
+        bundle=_make_bundle([target]),
         base_url="https://api.example.com",
         target_trace=target,
         existing_tools=[],
@@ -225,7 +247,7 @@ async def test_identify_includes_timeline_in_system() -> None:
         return resp
 
     mock_client.messages.create = mock_create
-    llm.init(client=mock_client, model="test")
+    setup_client(mock_client)
 
     timeline = (
         '\U0001f5b1 [click] "Search" on https://example.com/home\n'
@@ -234,7 +256,7 @@ async def test_identify_includes_timeline_in_system() -> None:
 
     target = make_trace("t_0001", "POST", "https://api.example.com/api/search", 200, 1000)
     await identify_capabilities(IdentifyInput(
-        remaining_traces=[target],
+        bundle=_make_bundle([target]),
         base_url="https://api.example.com/api",
         target_trace=target,
         existing_tools=[],

@@ -2,7 +2,7 @@
 # pyright: reportPrivateUsage=false
 
 from typing import Any
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -50,12 +50,14 @@ class TestEnrichSizeGuard:
             base_url="https://api.example.com",
         )
 
-        mock_ask = AsyncMock(return_value='{"description": "should not be called"}')
+        mock_ask_text = AsyncMock(return_value='{"description": "should not be called"}')
         with patch("cli.commands.openapi.analyze.enrich.llm") as mock_llm:
-            mock_llm.ask = mock_ask
+            mock_conv = MagicMock()
+            mock_conv.ask_text = mock_ask_text
+            mock_llm.Conversation.return_value = mock_conv
             result = await enrich_endpoints(ctx)
 
-        mock_ask.assert_not_called()
+        mock_ask_text.assert_not_called()
         assert result[0].description is None
 
     @pytest.mark.asyncio
@@ -86,12 +88,14 @@ class TestEnrichSizeGuard:
             base_url="https://api.example.com",
         )
 
-        mock_ask = AsyncMock(return_value='{"description": "Returns a user"}')
+        mock_ask_text = AsyncMock(return_value='{"description": "Returns a user"}')
         with patch("cli.commands.openapi.analyze.enrich.llm") as mock_llm:
-            mock_llm.ask = mock_ask
+            mock_conv = MagicMock()
+            mock_conv.ask_text = mock_ask_text
+            mock_llm.Conversation.return_value = mock_conv
             result = await enrich_endpoints(ctx)
 
-        mock_ask.assert_called_once()
+        mock_ask_text.assert_called_once()
         assert result[0].description == "Returns a user"
 
 

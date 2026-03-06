@@ -9,7 +9,7 @@ from unittest.mock import MagicMock
 import pytest
 
 import cli.helpers.llm as llm
-from cli.helpers.llm.tools import make_tools
+from cli.helpers.llm._client import setup_client
 from cli.helpers.llm.tools._decode_base64 import execute as execute_decode_base64
 from cli.helpers.llm.tools._decode_jwt import execute as execute_decode_jwt
 from cli.helpers.llm.tools._decode_url import execute as execute_decode_url
@@ -91,7 +91,7 @@ class TestDecodeJwt:
             execute_decode_jwt("not-a-jwt")
 
 
-# --- call_with_tools tests (async, mocked client) ---
+# --- Conversation tool-use tests (async, mocked client) ---
 
 
 def _make_text_response(text: str) -> MagicMock:
@@ -132,16 +132,12 @@ class TestCallWithTools:
 
         client = MagicMock()
         client.messages.create = mock_create
-        llm.init(client=client)
+        setup_client(client)
 
-        tools, executors = make_tools(["decode_base64", "decode_url", "decode_jwt"])
-
-        result = await llm._call_with_tools(
-            "model",
-            [{"role": "user", "content": "hi"}],
-            tools,
-            executors,
+        conv = llm.Conversation(
+            tool_names=["decode_base64", "decode_url", "decode_jwt"],
         )
+        result = await conv.ask_text("hi")
         assert result == '{"endpoints": []}'
         assert call_count[0] == 1
 
@@ -164,16 +160,12 @@ class TestCallWithTools:
 
         client = MagicMock()
         client.messages.create = mock_create
-        llm.init(client=client)
+        setup_client(client)
 
-        tools, executors = make_tools(["decode_base64", "decode_url", "decode_jwt"])
-
-        result = await llm._call_with_tools(
-            "model",
-            [{"role": "user", "content": "analyze"}],
-            tools,
-            executors,
+        conv = llm.Conversation(
+            tool_names=["decode_base64", "decode_url", "decode_jwt"],
         )
+        result = await conv.ask_text("analyze")
         assert "/api/data/{param}" in result
         assert call_count[0] == 2
 
@@ -200,16 +192,12 @@ class TestCallWithTools:
 
         client = MagicMock()
         client.messages.create = mock_create
-        llm.init(client=client)
+        setup_client(client)
 
-        tools, executors = make_tools(["decode_base64", "decode_url", "decode_jwt"])
-
-        result = await llm._call_with_tools(
-            "model",
-            [{"role": "user", "content": "go"}],
-            tools,
-            executors,
+        conv = llm.Conversation(
+            tool_names=["decode_base64", "decode_url", "decode_jwt"],
         )
+        result = await conv.ask_text("go")
         assert result == "[]"
 
     @pytest.mark.asyncio
@@ -222,18 +210,14 @@ class TestCallWithTools:
 
         client = MagicMock()
         client.messages.create = mock_create
-        llm.init(client=client)
+        setup_client(client)
 
-        tools, executors = make_tools(["decode_base64", "decode_url", "decode_jwt"])
-
+        conv = llm.Conversation(
+            tool_names=["decode_base64", "decode_url", "decode_jwt"],
+            max_iterations=3,
+        )
         with pytest.raises(ValueError, match="exceeded 3 iterations"):
-            await llm._call_with_tools(
-                "model",
-                [{"role": "user", "content": "go"}],
-                tools,
-                executors,
-                max_iterations=3,
-            )
+            await conv.ask_text("go")
 
     @pytest.mark.asyncio
     async def test_unknown_tool_returns_error(self):
@@ -255,14 +239,10 @@ class TestCallWithTools:
 
         client = MagicMock()
         client.messages.create = mock_create
-        llm.init(client=client)
+        setup_client(client)
 
-        tools, executors = make_tools(["decode_base64", "decode_url", "decode_jwt"])
-
-        result = await llm._call_with_tools(
-            "model",
-            [{"role": "user", "content": "go"}],
-            tools,
-            executors,
+        conv = llm.Conversation(
+            tool_names=["decode_base64", "decode_url", "decode_jwt"],
         )
+        result = await conv.ask_text("go")
         assert result == "done"

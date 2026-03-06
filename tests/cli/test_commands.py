@@ -13,13 +13,13 @@ import yaml
 
 from cli.commands.capture.types import CaptureBundle
 from cli.formats.capture_bundle import CaptureStats
+from cli.helpers.llm._client import setup_client
 from cli.main import cli
 
 
-def _make_mock_anthropic_module() -> MagicMock:
-    """Create a mock anthropic module with AsyncAnthropic client."""
+def _setup_openapi_llm() -> None:
+    """Set up a mock LLM client for OpenAPI analysis tests."""
 
-    # Standard LLM responses for the pipeline
     groups_response = json.dumps(
         [
             {
@@ -75,17 +75,13 @@ def _make_mock_anthropic_module() -> MagicMock:
         elif "single API endpoint" in msg:
             mock_content.text = enrich_response
         else:
-            # Fallback
             mock_content.text = enrich_response
         mock_response.content = [mock_content]
         return mock_response
 
     mock_client = MagicMock()
     mock_client.messages.create = mock_create
-
-    mock_module = MagicMock()
-    mock_module.AsyncAnthropic.return_value = mock_client
-    return mock_module
+    setup_client(mock_client)
 
 
 class TestAnalyzeCommand:
@@ -101,12 +97,11 @@ class TestAnalyzeCommand:
         output_path = tmp_path / "spec.yaml"
         runner = CliRunner()
 
-        mock_anthropic = _make_mock_anthropic_module()
-        with patch.dict("sys.modules", {"anthropic": mock_anthropic}):
-            result = runner.invoke(
-                cli,
-                ["openapi", "analyze", "testapp", "-o", str(output_path)],
-            )
+        _setup_openapi_llm()
+        result = runner.invoke(
+            cli,
+            ["openapi", "analyze", "testapp", "-o", str(output_path)],
+        )
 
         assert result.exit_code == 0, result.output
         assert output_path.exists()
@@ -126,12 +121,11 @@ class TestAnalyzeCommand:
         output_path = tmp_path / "spec.yaml"
         runner = CliRunner()
 
-        mock_anthropic = _make_mock_anthropic_module()
-        with patch.dict("sys.modules", {"anthropic": mock_anthropic}):
-            result = runner.invoke(
-                cli,
-                ["openapi", "analyze", "testapp", "-o", str(output_path)],
-            )
+        _setup_openapi_llm()
+        result = runner.invoke(
+            cli,
+            ["openapi", "analyze", "testapp", "-o", str(output_path)],
+        )
 
         assert result.exit_code == 0
         openapi = yaml.safe_load(output_path.read_text())
@@ -319,16 +313,15 @@ class TestDiscoverCommand:
         mock_discover.assert_called_once_with(9090)
 
 
-def _make_mcp_mock_anthropic() -> MagicMock:
-    """Create a mock anthropic module for MCP pipeline tests.
+def _setup_mcp_llm() -> None:
+    """Set up a mock LLM client for MCP pipeline tests.
 
     Handles the greedy per-trace pattern: identify per trace (no tools),
     then build for useful ones (with tools).
     """
-    identify_call_count = 0
+    identify_call_count = {"n": 0}
 
     async def mock_create(**kwargs: Any) -> MagicMock:
-        nonlocal identify_call_count
         resp = MagicMock()
         content_block = MagicMock()
         content_block.type = "text"
@@ -361,8 +354,8 @@ def _make_mcp_mock_anthropic() -> MagicMock:
             content_block.text = json.dumps({"base_url": "https://api.example.com"})
         elif "target trace:" in prompt_lower and "business capability" in full_text_lower:
             # Per-trace identify: first call -> useful, rest -> not useful
-            identify_call_count += 1
-            if identify_call_count == 1:
+            identify_call_count["n"] += 1
+            if identify_call_count["n"] == 1:
                 content_block.text = json.dumps({
                     "useful": True,
                     "name": "list_users",
@@ -388,10 +381,7 @@ def _make_mcp_mock_anthropic() -> MagicMock:
 
     mock_client = MagicMock()
     mock_client.messages.create = mock_create
-
-    mock_module = MagicMock()
-    mock_module.AsyncAnthropic.return_value = mock_client
-    return mock_module
+    setup_client(mock_client)
 
 
 class TestAnalyzeMcpCommand:
@@ -404,12 +394,11 @@ class TestAnalyzeMcpCommand:
         store_capture(sample_bundle, "testapp")
 
         runner = CliRunner()
-        mock_anthropic = _make_mcp_mock_anthropic()
-        with patch.dict("sys.modules", {"anthropic": mock_anthropic}):
-            result = runner.invoke(
-                cli,
-                ["mcp", "analyze", "testapp"],
-            )
+        _setup_mcp_llm()
+        result = runner.invoke(
+            cli,
+            ["mcp", "analyze", "testapp"],
+        )
 
         assert result.exit_code == 0, result.output
         assert "tool" in result.output.lower()
@@ -429,12 +418,11 @@ class TestAnalyzeMcpCommand:
         store_capture(sample_bundle, "testapp")
 
         runner = CliRunner()
-        mock_anthropic = _make_mcp_mock_anthropic()
-        with patch.dict("sys.modules", {"anthropic": mock_anthropic}):
-            result = runner.invoke(
-                cli,
-                ["mcp", "analyze", "testapp"],
-            )
+        _setup_mcp_llm()
+        result = runner.invoke(
+            cli,
+            ["mcp", "analyze", "testapp"],
+        )
 
         assert result.exit_code == 0, result.output
         meta = load_app_meta("testapp")

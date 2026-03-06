@@ -13,7 +13,7 @@ from cli.formats.capture_bundle import (
     Timeline,
 )
 from cli.helpers.detect_base_url import detect_base_url
-import cli.helpers.llm as llm
+from cli.helpers.llm._client import setup_client
 from tests.conftest import make_trace
 
 
@@ -74,7 +74,7 @@ class TestDetectBaseUrl:
 
         client = MagicMock()
         client.messages.create = mock_create
-        llm.init(client=client, model="test")
+        setup_client(client)
 
         bundle = _make_bundle([
             make_trace("t_0001", "GET", "https://www.example.com/api/users", 200, 1000),
@@ -92,7 +92,7 @@ class TestDetectBaseUrl:
 
         client = MagicMock()
         client.messages.create = mock_create
-        llm.init(client=client, model="test")
+        setup_client(client)
 
         bundle = _make_bundle([
             make_trace("t_0001", "GET", "https://api.example.com/v1", 200, 1000),
@@ -109,7 +109,7 @@ class TestDetectBaseUrl:
 
         client = MagicMock()
         client.messages.create = mock_create
-        llm.init(client=client, model="test")
+        setup_client(client)
 
         bundle = _make_bundle([
             make_trace("t_0001", "GET", "https://api.example.com/users", 200, 1000),
@@ -126,7 +126,7 @@ class TestDetectBaseUrl:
 
         client = MagicMock()
         client.messages.create = mock_create
-        llm.init(client=client, model="test")
+        setup_client(client)
 
         bundle = _make_bundle([
             make_trace("t_0001", "GET", "https://example.com/api", 200, 1000),

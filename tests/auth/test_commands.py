@@ -4,12 +4,13 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 from click.testing import CliRunner
 import pytest
 
 from cli.commands.capture.types import CaptureBundle
+from cli.helpers.llm._client import setup_client
 from cli.main import cli
 
 _DEFAULT_SCRIPT_RESPONSE = (
@@ -45,20 +46,15 @@ def _make_text_block(text: str) -> MagicMock:
     return resp
 
 
-def _make_auth_mock_anthropic(script_response: str | None = None) -> MagicMock:
-    """Create a mock anthropic module for auth analysis tests.
+def _setup_auth_llm(script_response: str | None = None) -> None:
+    """Set up a mock LLM client for auth analysis tests.
 
-    If *script_response* is provided, the mock returns it as the LLM text
-    for the auth script generation call.
-    Otherwise returns a default script with ``acquire_token()``.
-
-    The mock handles multiple LLM calls: first for base URL detection,
+    Handles multiple LLM calls: first for base URL detection,
     then for auth script generation.
     """
     if script_response is None:
         script_response = _DEFAULT_SCRIPT_RESPONSE
 
-    # Track call count to return different responses
     call_count = {"n": 0}
     final_script = script_response
 
@@ -72,10 +68,7 @@ def _make_auth_mock_anthropic(script_response: str | None = None) -> MagicMock:
 
     mock_client = MagicMock()
     mock_client.messages.create = mock_create
-
-    mock_module = MagicMock()
-    mock_module.AsyncAnthropic.return_value = mock_client
-    return mock_module
+    setup_client(mock_client)
 
 
 class TestAuthSet:
@@ -213,10 +206,9 @@ class TestAuthAnalyze:
         monkeypatch.setenv("SPECTRAL_HOME", str(tmp_path / "store"))
         store_capture(sample_bundle, "testapp")
 
+        _setup_auth_llm()
         runner = CliRunner()
-        mock_anthropic = _make_auth_mock_anthropic()
-        with patch.dict("sys.modules", {"anthropic": mock_anthropic}):
-            result = runner.invoke(cli, ["auth", "analyze", "testapp"])
+        result = runner.invoke(cli, ["auth", "analyze", "testapp"])
 
         assert result.exit_code == 0, result.output
         assert "Auth script written to" in result.output
@@ -235,10 +227,9 @@ class TestAuthAnalyze:
         monkeypatch.setenv("SPECTRAL_HOME", str(tmp_path / "store"))
         store_capture(sample_bundle, "testapp")
 
+        _setup_auth_llm(script_response="NO_AUTH")
         runner = CliRunner()
-        mock_anthropic = _make_auth_mock_anthropic(script_response="NO_AUTH")
-        with patch.dict("sys.modules", {"anthropic": mock_anthropic}):
-            result = runner.invoke(cli, ["auth", "analyze", "testapp"])
+        result = runner.invoke(cli, ["auth", "analyze", "testapp"])
 
         assert result.exit_code == 0, result.output
         assert "No authentication mechanism detected" in result.output
