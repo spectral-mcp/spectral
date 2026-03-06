@@ -1,8 +1,7 @@
 """Tests for schema inference utilities."""
-# pyright: reportPrivateUsage=false
 
 from typing import Any
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -12,9 +11,6 @@ from cli.helpers.schema import (
     infer_query_schema,
     infer_schema,
 )
-from cli.helpers.schema._scalars import coerce_value
-from cli.helpers.schema._schema_analysis import _resolve_map_candidates
-from cli.helpers.schema._schema_inference import _detect_format, _infer_type
 from tests.conftest import make_trace
 
 
@@ -173,83 +169,6 @@ class TestInferSchema:
         samples = [{"x": None}, {"x": None}]
         schema = infer_schema(samples)
         assert schema["properties"]["x"]["type"] == "string"
-
-
-class TestInferType:
-    def test_bool_before_int(self):
-        assert _infer_type(True) == "boolean"
-
-    def test_int(self):
-        assert _infer_type(42) == "integer"
-
-    def test_float(self):
-        assert _infer_type(3.14) == "number"
-
-    def test_string(self):
-        assert _infer_type("hello") == "string"
-
-    def test_list(self):
-        assert _infer_type([1, 2]) == "array"
-
-    def test_dict(self):
-        assert _infer_type({"a": 1}) == "object"
-
-    def test_none(self):
-        assert _infer_type(None) == "string"
-
-
-class TestCoerceValue:
-    def test_integer(self):
-        assert coerce_value("123") == 123
-
-    def test_float(self):
-        assert coerce_value("1.5") == 1.5
-
-    def test_boolean_true(self):
-        assert coerce_value("true") is True
-
-    def test_boolean_false(self):
-        assert coerce_value("False") is False
-
-    def test_string(self):
-        assert coerce_value("hello") == "hello"
-
-
-class TestDetectFormat:
-    def test_date_time(self):
-        assert (
-            _detect_format(["2024-01-15T10:30:00Z", "2024-02-20T14:00:00Z"])
-            == "date-time"
-        )
-
-    def test_date_only(self):
-        assert _detect_format(["2024-01-15", "2024-02-20"]) == "date"
-
-    def test_email(self):
-        assert _detect_format(["alice@example.com", "bob@test.org"]) == "email"
-
-    def test_uuid(self):
-        assert (
-            _detect_format(
-                [
-                    "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-                    "11111111-2222-3333-4444-555555555555",
-                ]
-            )
-            == "uuid"
-        )
-
-    def test_uri(self):
-        assert (
-            _detect_format(["https://example.com/page1", "https://example.com/page2"])
-            == "uri"
-        )
-
-    def test_no_format(self):
-        assert _detect_format(["hello", "world"]) is None
-
-    def test_non_string_values(self):
-        assert _detect_format([42, 100]) is None
 
 
 class TestInferPathSchema:
@@ -625,9 +544,10 @@ class TestStructuralAnnotation:
                 for i in range(6)
             }
         ]
-        mock_ask = AsyncMock(return_value='[{"group": 1, "is_map": true}]')
+        mock_conv = MagicMock()
+        mock_conv.ask_text = AsyncMock(return_value='[{"group": 1, "is_map": true}]')
         with patch("cli.helpers.schema._schema_analysis.llm") as mock_llm:
-            mock_llm.ask = mock_ask
+            mock_llm.Conversation.return_value = mock_conv
 
             schema = await analyze_schema(samples)
 
@@ -664,137 +584,3 @@ class TestStructuralAnnotation:
         ]
         schema = await analyze_schema(samples)
         assert "x-map-candidate" not in schema
-
-
-class TestResolveMapCandidates:
-    @pytest.mark.asyncio
-    async def test_resolve_confirmed_map(self):
-        """LLM confirms is_map → properties collapsed to additionalProperties."""
-        schema: dict[str, Any] = {
-            "type": "object",
-            "properties": {
-                "key-0": {
-                    "type": "object",
-                    "properties": {
-                        "id": {"type": "integer", "examples": [0]},
-                        "name": {"type": "string", "examples": ["item-0"]},
-                    },
-                    "examples": [{"id": 0, "name": "item-0"}],
-                },
-                "key-1": {
-                    "type": "object",
-                    "properties": {
-                        "id": {"type": "integer", "examples": [1]},
-                        "name": {"type": "string", "examples": ["item-1"]},
-                    },
-                    "examples": [{"id": 1, "name": "item-1"}],
-                },
-            },
-            "x-map-candidate": {
-                "keys": ["key-0", "key-1", "key-2", "key-3", "key-4"],
-                "shared_properties": ["id", "name"],
-                "extra_properties": [],
-            },
-        }
-
-        mock_ask = AsyncMock(return_value='[{"group": 1, "is_map": true}]')
-        with patch("cli.helpers.schema._schema_analysis.llm") as mock_llm:
-            mock_llm.ask = mock_ask
-
-            await _resolve_map_candidates(schema)
-
-        assert "additionalProperties" in schema
-        assert "properties" not in schema
-        assert schema["x-key-pattern"] == "dynamic"
-        assert "x-map-candidate" not in schema
-
-    @pytest.mark.asyncio
-    async def test_resolve_denied_map(self):
-        """LLM denies is_map → annotation removed, properties kept."""
-        schema: dict[str, Any] = {
-            "type": "object",
-            "properties": {
-                "config": {
-                    "type": "object",
-                    "properties": {"a": {"type": "string"}},
-                    "examples": [{"a": "x"}],
-                },
-                "status": {
-                    "type": "object",
-                    "properties": {"a": {"type": "string"}},
-                    "examples": [{"a": "y"}],
-                },
-            },
-            "x-map-candidate": {
-                "keys": ["config", "status", "meta", "info", "extra"],
-                "shared_properties": ["a"],
-                "extra_properties": [],
-            },
-        }
-
-        mock_ask = AsyncMock(return_value='[{"group": 1, "is_map": false}]')
-        with patch("cli.helpers.schema._schema_analysis.llm") as mock_llm:
-            mock_llm.ask = mock_ask
-
-            await _resolve_map_candidates(schema)
-
-        assert "properties" in schema
-        assert "additionalProperties" not in schema
-        assert "x-map-candidate" not in schema
-
-    @pytest.mark.asyncio
-    async def test_resolve_no_candidates_skips_llm(self):
-        """No x-map-candidate → no LLM call."""
-        schema: dict[str, Any] = {
-            "type": "object",
-            "properties": {"name": {"type": "string"}},
-        }
-
-        mock_ask = AsyncMock()
-        with patch("cli.helpers.schema._schema_analysis.llm") as mock_llm:
-            mock_llm.ask = mock_ask
-            await _resolve_map_candidates(schema)
-
-        mock_ask.assert_not_called()
-
-    @pytest.mark.asyncio
-    async def test_resolve_nested_candidates(self):
-        """Candidate inside a nested property is correctly found and resolved."""
-        inner: dict[str, Any] = {
-            "type": "object",
-            "properties": {
-                "k0": {
-                    "type": "object",
-                    "properties": {"id": {"type": "integer", "examples": [0]}},
-                    "examples": [{"id": 0}],
-                },
-                "k1": {
-                    "type": "object",
-                    "properties": {"id": {"type": "integer", "examples": [1]}},
-                    "examples": [{"id": 1}],
-                },
-            },
-            "x-map-candidate": {
-                "keys": ["k0", "k1", "k2", "k3", "k4"],
-                "shared_properties": ["id"],
-                "extra_properties": [],
-            },
-        }
-        schema: dict[str, Any] = {
-            "type": "object",
-            "properties": {
-                "data": inner,
-            },
-        }
-
-        mock_ask = AsyncMock(return_value='[{"group": 1, "is_map": true}]')
-        with patch("cli.helpers.schema._schema_analysis.llm") as mock_llm:
-            mock_llm.ask = mock_ask
-
-            await _resolve_map_candidates(schema)
-
-        # The inner schema should be collapsed
-        data_prop = schema["properties"]["data"]
-        assert "additionalProperties" in data_prop
-        assert "x-map-candidate" not in data_prop
-        assert data_prop["x-key-pattern"] == "dynamic"

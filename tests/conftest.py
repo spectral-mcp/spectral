@@ -1,4 +1,5 @@
 """Shared test fixtures for spectral tests."""
+# pyright: reportPrivateUsage=false
 
 from __future__ import annotations
 
@@ -6,7 +7,10 @@ import json
 
 import pytest
 
-import cli.helpers.llm as llm
+from cli.helpers.llm._client import clear_client
+import cli.helpers.llm._conversation as _conv_mod
+from cli.helpers.llm._cost import reset_usage
+from cli.helpers.llm._debug import clear_debug_dir
 
 
 @pytest.fixture(autouse=True)
@@ -14,12 +18,18 @@ def reset_llm_globals(monkeypatch: pytest.MonkeyPatch):
     """Reset module globals before/after each test.
 
     Sets a dummy ANTHROPIC_API_KEY so that tests which call
-    ``llm.init()`` in production mode never trigger an interactive prompt.
+    ``setup_client()`` in production mode never trigger an interactive prompt.
     """
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test-dummy")
-    llm.reset()
+    clear_client()
+    reset_usage()
+    clear_debug_dir()
+    _conv_mod._model_override = None
     yield
-    llm.reset()
+    clear_client()
+    reset_usage()
+    clear_debug_dir()
+    _conv_mod._model_override = None
 
 from cli.commands.capture.types import (
     CaptureBundle,

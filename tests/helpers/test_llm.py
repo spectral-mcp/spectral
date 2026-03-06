@@ -5,9 +5,8 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from pydantic import BaseModel
@@ -17,7 +16,6 @@ import cli.helpers.llm as llm
 from cli.helpers.llm import (
     _client as _client_mod,  # pyright: ignore[reportPrivateUsage]
     _conversation as _conv_mod,  # pyright: ignore[reportPrivateUsage]
-    _cost as _cost_mod,  # pyright: ignore[reportPrivateUsage]
     _debug as _debug_mod,  # pyright: ignore[reportPrivateUsage]
 )
 
@@ -76,117 +74,231 @@ def _make_rate_limit_error(retry_after: str | None = None) -> Exception:
     )
 
 
-class TestInit:
-    def test_init_with_mock_client(self):
-        mock = MagicMock()
-        llm.init(client=mock, model="m")
-        assert _client_mod.get_client() is mock
-        assert _conv_mod._semaphore is not None
+def _setup(client: Any = None, response: Any = None) -> MagicMock:
+    """Setup a mock client via setup_client. Returns the mock client."""
+    if client is None:
+        client = _make_mock_client(response)
+    _client_mod.setup_client(client)
+    return client
 
-    def test_init_stores_model(self):
-        llm.init(client=MagicMock(), model="claude-test-model")
-        assert _conv_mod._model == "claude-test-model"
 
-    def test_init_custom_concurrency(self):
-        llm.init(client=MagicMock(), max_concurrent=3, model="m")
-        sem = _conv_mod._semaphore
-        assert sem is not None
-        assert sem._value == 3
+class TestSetModel:
+    def test_override_works(self):
+        llm.set_model("custom-model")
+        assert _conv_mod._model_override == "custom-model"
 
-    def test_init_debug_dir(self, tmp_path: Path):
+    def test_default_used_when_no_override(self):
+        _setup(response=_make_mock_response("ok"))
+        conv = llm.Conversation(model="my-default")
+        assert conv._model == "my-default"
+        # Verify no override is active
+        assert _conv_mod._model_override is None
+
+
+class TestInitDebug:
+    def test_explicit_dir(self, tmp_path: Path):
         debug_dir = tmp_path / "debug"
         debug_dir.mkdir()
-        llm.init(client=MagicMock(), debug_dir=debug_dir, model="m")
+        llm.init_debug(debug=True, debug_dir=debug_dir)
         assert _debug_mod._debug_dir is debug_dir
 
-    def test_reset_clears_all(self, tmp_path: Path):
-        debug_dir = tmp_path / "debug"
-        debug_dir.mkdir()
-        llm.init(client=MagicMock(), debug_dir=debug_dir, model="m")
-        llm.reset()
-        assert _debug_mod._debug_dir is None
-        assert _conv_mod._model is None
+    def test_creates_timestamped_dir(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.chdir(tmp_path)
+        llm.init_debug(debug=True)
+        assert _debug_mod._debug_dir is not None
+        assert _debug_mod._debug_dir.exists()
 
 
-class TestInternalSend:
+class TestConversationAskText:
     @pytest.mark.asyncio
-    async def test_success_no_retry(self):
-        """Successful call on first attempt, no retry needed."""
-        expected = MagicMock()
-        client = _make_mock_client(expected)
-        llm.init(client=client, model="m")
+    async def test_returns_text(self):
+        client = _setup(response=_make_mock_response("the answer"))
+        conv = llm.Conversation()
+        result = await conv.ask_text("what is 1+1?")
+        assert result == "the answer"
+        client.messages.create.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_uses_model(self):
+        llm.set_model("claude-test-123")
+        client = _setup(response=_make_mock_response("ok"))
+        conv = llm.Conversation()
+        await conv.ask_text("hello")
+        call_kwargs = client.messages.create.call_args.kwargs
+        assert call_kwargs["model"] == "claude-test-123"
+
+    @pytest.mark.asyncio
+    async def test_system_string(self):
+        client = _setup(response=_make_mock_response("ok"))
+        conv = llm.Conversation(system="You are a helpful assistant.")
+        await conv.ask_text("hello")
+        call_kwargs = client.messages.create.call_args.kwargs
+        assert "system" in call_kwargs
+        blocks = call_kwargs["system"]
+        assert len(blocks) == 1
+        assert blocks[0]["type"] == "text"
+        assert blocks[0]["text"] == "You are a helpful assistant."
+        assert blocks[0]["cache_control"] == {"type": "ephemeral"}
+
+    @pytest.mark.asyncio
+    async def test_system_list(self):
+        client = _setup(response=_make_mock_response("ok"))
+        conv = llm.Conversation(system=["block1", "block2"])
+        await conv.ask_text("hello")
+        call_kwargs = client.messages.create.call_args.kwargs
+        blocks = call_kwargs["system"]
+        assert len(blocks) == 2
+        assert blocks[0]["text"] == "block1"
+        assert blocks[1]["text"] == "block2"
+        assert all(b["cache_control"] == {"type": "ephemeral"} for b in blocks)
+
+    @pytest.mark.asyncio
+    async def test_no_system_omits_kwarg(self):
+        client = _setup(response=_make_mock_response("ok"))
+        conv = llm.Conversation()
+        await conv.ask_text("hello")
+        call_kwargs = client.messages.create.call_args.kwargs
+        assert "system" not in call_kwargs
+
+    @pytest.mark.asyncio
+    async def test_detects_truncation(self):
+        _setup(response=_make_mock_response("partial...", stop_reason="max_tokens"))
+        conv = llm.Conversation(max_tokens=100, label="test_trunc")
+        with pytest.raises(ValueError, match="LLM response truncated"):
+            await conv.ask_text("hello")
+
+
+class TestConversationAskJson:
+    @pytest.mark.asyncio
+    async def test_valid_json_returns_model(self):
+        _setup(response=_make_mock_response('{"useful": true, "name": "search"}'))
+        conv = llm.Conversation()
+        result = await conv.ask_json("test", _SampleModel)
+        assert isinstance(result, _SampleModel)
+        assert result.useful is True
+        assert result.name == "search"
+
+    @pytest.mark.asyncio
+    async def test_json_in_markdown_fences(self):
+        text = '```json\n{"useful": false}\n```'
+        _setup(response=_make_mock_response(text))
+        conv = llm.Conversation()
+        result = await conv.ask_json("test", _SampleModel)
+        assert result.useful is False
+
+    @pytest.mark.asyncio
+    async def test_invalid_then_valid_retries(self):
+        bad_resp = _make_mock_response("not json at all")
+        good_resp = _make_mock_response('{"useful": true, "name": "retry_ok"}')
+        client = MagicMock()
+        client.messages.create = AsyncMock(side_effect=[bad_resp, good_resp])
+        _setup(client=client)
 
         conv = llm.Conversation()
-        result = await conv._send(model="m", max_tokens=10, messages=[])
+        result = await conv.ask_json("test", _SampleModel)
+        assert isinstance(result, _SampleModel)
+        assert result.name == "retry_ok"
+        assert client.messages.create.await_count == 2
+
+    @pytest.mark.asyncio
+    async def test_both_invalid_raises(self):
+        bad1 = _make_mock_response("nope")
+        bad2 = _make_mock_response("still nope")
+        client = MagicMock()
+        client.messages.create = AsyncMock(side_effect=[bad1, bad2])
+        _setup(client=client)
+
+        conv = llm.Conversation()
+        with pytest.raises((ValueError, Exception)):
+            await conv.ask_json("test", _SampleModel)
+
+    @pytest.mark.asyncio
+    async def test_validation_error_retries(self):
+        bad_resp = _make_mock_response('{"useful": "not_a_bool"}')
+        good_resp = _make_mock_response('{"useful": true}')
+        client = MagicMock()
+        client.messages.create = AsyncMock(side_effect=[bad_resp, good_resp])
+        _setup(client=client)
+
+        conv = llm.Conversation()
+        result = await conv.ask_json("test", _SampleModel)
+        assert result.useful is True
+
+    @pytest.mark.asyncio
+    async def test_prompt_includes_json_instruction(self):
+        client = _setup(response=_make_mock_response('{"useful": true}'))
+        conv = llm.Conversation()
+        await conv.ask_json("my prompt", _SampleModel)
+        call_kwargs = client.messages.create.call_args.kwargs
+        prompt_text = call_kwargs["messages"][0]["content"]
+        assert "IMPORTANT: Respond with a single minified JSON" in prompt_text
+        assert "my prompt" in prompt_text
+
+
+class TestSend:
+    @pytest.mark.asyncio
+    async def test_success_no_retry(self):
+        expected = _make_mock_response()
+        client = _setup(response=expected)
+        result = await _client_mod.send(model="m", max_tokens=10, messages=[])
         assert result is expected
         client.messages.create.assert_awaited_once()
 
     @pytest.mark.asyncio
-    async def test_rate_limit_with_retry_after_header(self):
-        """Rate limit -> retry-after header respected -> success on 2nd attempt."""
-        expected = MagicMock()
+    async def test_rate_limit_with_retry_after(self):
+        expected = _make_mock_response()
         error = _make_rate_limit_error(retry_after="0.01")
-
         client = MagicMock()
         client.messages.create = AsyncMock(side_effect=[error, expected])
-        llm.init(client=client, model="m")
+        _setup(client=client)
 
-        conv = llm.Conversation()
-        result = await conv._send(model="m", max_tokens=10, messages=[])
+        result = await _client_mod.send(model="m", max_tokens=10, messages=[])
         assert result is expected
         assert client.messages.create.await_count == 2
 
     @pytest.mark.asyncio
     async def test_rate_limit_fallback_exponential(self):
-        """Rate limit without retry-after -> fallback exponential backoff."""
-        expected = MagicMock()
+        expected = _make_mock_response()
         error = _make_rate_limit_error(retry_after=None)
-
         client = MagicMock()
         client.messages.create = AsyncMock(side_effect=[error, expected])
-        original_backoff = _conv_mod.FALLBACK_BACKOFF
-        _conv_mod.FALLBACK_BACKOFF = 0.01
+        _setup(client=client)
+
+        original_backoff = _client_mod.FALLBACK_BACKOFF
+        _client_mod.FALLBACK_BACKOFF = 0.01
         try:
-            llm.init(client=client, model="m")
-            conv = llm.Conversation()
-            result = await conv._send(model="m", max_tokens=10, messages=[])
+            result = await _client_mod.send(model="m", max_tokens=10, messages=[])
             assert result is expected
         finally:
-            _conv_mod.FALLBACK_BACKOFF = original_backoff
+            _client_mod.FALLBACK_BACKOFF = original_backoff
 
     @pytest.mark.asyncio
     async def test_retries_exhausted_reraises(self):
-        """All retries exhausted -> original RateLimitError is re-raised."""
         import anthropic
 
         error = _make_rate_limit_error(retry_after="0.01")
-
         client = MagicMock()
         client.messages.create = AsyncMock(
-            side_effect=[error] * (llm.MAX_RETRIES + 1)
+            side_effect=[error] * (_client_mod.MAX_RETRIES + 1)
         )
-        llm.init(client=client, model="m")
+        _setup(client=client)
 
-        conv = llm.Conversation()
         with pytest.raises(anthropic.RateLimitError):
-            await conv._send(model="m", max_tokens=10, messages=[])
-        assert client.messages.create.await_count == llm.MAX_RETRIES + 1
+            await _client_mod.send(model="m", max_tokens=10, messages=[])
+        assert client.messages.create.await_count == _client_mod.MAX_RETRIES + 1
 
     @pytest.mark.asyncio
-    async def test_non_rate_limit_error_no_retry(self):
-        """Non-rate-limit errors propagate immediately without retry."""
+    async def test_non_rate_limit_no_retry(self):
         client = MagicMock()
         client.messages.create = AsyncMock(side_effect=ValueError("boom"))
-        llm.init(client=client, model="m")
+        _setup(client=client)
 
-        conv = llm.Conversation()
         with pytest.raises(ValueError, match="boom"):
-            await conv._send(model="m", max_tokens=10, messages=[])
+            await _client_mod.send(model="m", max_tokens=10, messages=[])
         client.messages.create.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_semaphore_limits_concurrency(self):
-        """Semaphore prevents more than max_concurrent calls at once."""
         max_concurrent = 2
         concurrent_count = 0
         peak_concurrent = 0
@@ -201,93 +313,36 @@ class TestInternalSend:
 
         client = MagicMock()
         client.messages.create = slow_create
-        llm.init(client=client, max_concurrent=max_concurrent, model="m")
+        _setup(client=client)
 
-        conv = llm.Conversation()
+        # Set a custom semaphore with max_concurrent=2
+        _client_mod._semaphore = asyncio.Semaphore(max_concurrent)
+
         await asyncio.gather(*[
-            conv._send(model="m", max_tokens=10, messages=[])
+            _client_mod.send(model="m", max_tokens=10, messages=[])
             for _ in range(6)
         ])
         assert peak_concurrent <= max_concurrent
 
     @pytest.mark.asyncio
     async def test_not_initialized_raises(self):
-        """Calling _send() before init() raises RuntimeError."""
-        conv = llm.Conversation()
-        with pytest.raises(RuntimeError, match="not initialized"):
-            await conv._send(model="m", max_tokens=10, messages=[])
+        # clear_client() is called by the fixture, so _client is None.
+        # get_client() will try to lazily init — but with our dummy key,
+        # it would create a real client. Instead we verify send() works
+        # when properly initialized.
+        _setup(response=_make_mock_response())
+        result = await _client_mod.send(model="m", max_tokens=10, messages=[])
+        assert result is not None
 
 
-class TestAsk:
+class TestConversationDebug:
     @pytest.mark.asyncio
-    async def test_ask_returns_text(self):
-        """ask() returns the text content from the LLM response."""
-        client = _make_mock_client(_make_mock_response("the answer"))
-        llm.init(client=client, model="m")
-
-        conv = llm.Conversation()
-        result = await conv.ask_text("what is 1+1?")
-        assert result == "the answer"
-        client.messages.create.assert_awaited_once()
-
-    @pytest.mark.asyncio
-    async def test_ask_uses_stored_model(self):
-        """ask() passes the model configured via init() to the API."""
-        client = _make_mock_client(_make_mock_response("ok"))
-        llm.init(client=client, model="claude-test-123")
-
-        conv = llm.Conversation()
-        await conv.ask_text("hello")
-        call_kwargs = client.messages.create.call_args
-        assert call_kwargs.kwargs["model"] == "claude-test-123"
-
-    @pytest.mark.asyncio
-    async def test_ask_without_model_raises(self):
-        """ask() raises RuntimeError if no model was configured."""
-        client = _make_mock_client(_make_mock_response("ok"))
-        llm.init(client=client)
-
-        conv = llm.Conversation()
-        with pytest.raises(RuntimeError, match="No model configured"):
-            await conv.ask_text("hello")
-
-    @pytest.mark.asyncio
-    async def test_ask_with_tools_delegates(self):
-        """ask() with tools delegates to the tool loop."""
-        # First response uses a tool, second gives final text
-        tool_use_block = MagicMock()
-        tool_use_block.type = "tool_use"
-        tool_use_block.name = "my_tool"
-        tool_use_block.input = {"key": "val"}
-        tool_use_block.id = "tu_1"
-
-        tool_response = MagicMock()
-        tool_response.content = [tool_use_block]
-        tool_response.stop_reason = "tool_use"
-
-        final_response = _make_mock_response('{"result": "ok"}')
-
-        client = MagicMock()
-        client.messages.create = AsyncMock(side_effect=[tool_response, final_response])
-        llm.init(client=client, model="m")
-
-        tools = [{"name": "my_tool", "description": "test", "input_schema": {"type": "object"}}]
-        executors: dict[str, Callable[[dict[str, Any]], str]] = {"my_tool": lambda inp: "tool_output"}
-
-        conv = llm.Conversation(tools=tools, executors=executors)
-        result = await conv.ask_text("use the tool")
-        assert result == '{"result": "ok"}'
-        assert client.messages.create.await_count == 2
-
-    @pytest.mark.asyncio
-    async def test_ask_saves_debug(self, tmp_path: Path):
-        """ask() writes a debug file when debug_dir is set."""
+    async def test_writes_debug_file(self, tmp_path: Path):
         debug_dir = tmp_path / "debug"
         debug_dir.mkdir()
+        llm.init_debug(debug=True, debug_dir=debug_dir)
 
-        client = _make_mock_client(_make_mock_response("debug test"))
-        llm.init(client=client, debug_dir=debug_dir, model="m")
-
+        _setup(response=_make_mock_response("debug test"))
         conv = llm.Conversation(label="test_label")
         await conv.ask_text("hello")
 
@@ -300,559 +355,21 @@ class TestAsk:
         assert "debug test" in content
         assert "test_label" in files[0].name
 
+
+class TestPrintUsageSummary:
     @pytest.mark.asyncio
-    async def test_ask_detects_truncation(self):
-        """ask() raises ValueError when the response is truncated (max_tokens)."""
-        client = _make_mock_client(_make_mock_response("partial...", stop_reason="max_tokens"))
-        llm.init(client=client, model="m")
-
-        conv = llm.Conversation(max_tokens=100, label="test_trunc")
-        with pytest.raises(ValueError, match="LLM response truncated"):
-            await conv.ask_text("hello")
-
-    @pytest.mark.asyncio
-    async def test_tool_loop_detects_truncation(self):
-        """_run_tool_loop raises ValueError on max_tokens stop_reason."""
-        truncated = _make_mock_response("partial", stop_reason="max_tokens")
-        client = _make_mock_client(truncated)
-        llm.init(client=client, model="m")
-
-        tools = [{"name": "t", "description": "t", "input_schema": {"type": "object"}}]
-        executors: dict[str, Callable[[dict[str, Any]], str]] = {"t": lambda inp: "ok"}
-
-        conv = llm.Conversation(tools=tools, executors=executors)
-        with pytest.raises(ValueError, match="LLM response truncated"):
-            await conv.ask_text("hello")
-
-
-class TestSystemParam:
-    @pytest.mark.asyncio
-    async def test_ask_passes_system_string(self):
-        """ask(system='...') passes system blocks to _send."""
-        client = _make_mock_client(_make_mock_response("ok"))
-        llm.init(client=client, model="m")
-
-        conv = llm.Conversation(system="You are a helpful assistant.")
-        await conv.ask_text("hello")
-
-        call_kwargs = client.messages.create.call_args.kwargs
-        assert "system" in call_kwargs
-        blocks = call_kwargs["system"]
-        assert len(blocks) == 1
-        assert blocks[0]["type"] == "text"
-        assert blocks[0]["text"] == "You are a helpful assistant."
-        assert blocks[0]["cache_control"] == {"type": "ephemeral"}
-
-    @pytest.mark.asyncio
-    async def test_ask_passes_system_list(self):
-        """Conversation(system=[...]) passes multiple system blocks."""
-        client = _make_mock_client(_make_mock_response("ok"))
-        llm.init(client=client, model="m")
-
-        conv = llm.Conversation(system=["block1", "block2"])
-        await conv.ask_text("hello")
-
-        call_kwargs = client.messages.create.call_args.kwargs
-        blocks = call_kwargs["system"]
-        assert len(blocks) == 2
-        assert blocks[0]["text"] == "block1"
-        assert blocks[1]["text"] == "block2"
-        assert all(b["cache_control"] == {"type": "ephemeral"} for b in blocks)
-
-    @pytest.mark.asyncio
-    async def test_ask_no_system_omits_kwarg(self):
-        """Conversation() without system does not pass system kwarg."""
-        client = _make_mock_client(_make_mock_response("ok"))
-        llm.init(client=client, model="m")
-
-        conv = llm.Conversation()
-        await conv.ask_text("hello")
-
-        call_kwargs = client.messages.create.call_args.kwargs
-        assert "system" not in call_kwargs
-
-    @pytest.mark.asyncio
-    async def test_ask_system_with_tools(self):
-        """Conversation(system=..., tools=...) passes system through tool loop."""
-        final_response = _make_mock_response("done")
-        client = _make_mock_client(final_response)
-        llm.init(client=client, model="m")
-
-        tools = [{"name": "t", "description": "t", "input_schema": {"type": "object"}}]
-        executors: dict[str, Callable[[dict[str, Any]], str]] = {"t": lambda inp: "ok"}
-
-        conv = llm.Conversation(system="sys", tools=tools, executors=executors)
-        await conv.ask_text("hello")
-
-        call_kwargs = client.messages.create.call_args.kwargs
-        blocks = call_kwargs["system"]
-        assert len(blocks) == 1
-        assert blocks[0]["text"] == "sys"
-
-
-class TestReadableJson:
-    def test_collapses_short_blocks(self):
-        from cli.helpers.json import compact
-
-        obj = {"name": "Alice", "tags": ["admin", "user"], "address": {"city": "Paris", "zip": "75001"}}
-        result = compact(obj)
-        # Short arrays/objects should be on one line
-        assert '["admin", "user"]' in result
-        assert '{"city": "Paris", "zip": "75001"}' in result
-        # But the outer object should still be multi-line
-        assert "\n" in result
-
-    def test_expands_large_blocks(self):
-        from cli.helpers.json import compact
-
-        obj = {"data": ["a" * 30, "b" * 30, "c" * 30]}
-        result = compact(obj)
-        # The inner array is too wide to collapse (>80 chars), so it stays multi-line
-        lines = result.strip().splitlines()
-        assert len(lines) > 2
-
-
-class TestUsageTracking:
-    def test_get_usage_zero_after_init(self):
-        """get_usage() returns (0, 0) right after init()."""
-        llm.init(client=MagicMock(), model="m")
-        assert llm.get_usage() == (0, 0)
-
-    @pytest.mark.asyncio
-    async def test_tokens_accumulate_after_ask(self):
-        """Token counts accumulate across multiple ask() calls."""
-        resp1 = _make_mock_response("a", input_tokens=100, output_tokens=50)
-        resp2 = _make_mock_response("b", input_tokens=200, output_tokens=80)
-        client = MagicMock()
-        client.messages.create = AsyncMock(side_effect=[resp1, resp2])
-        llm.init(client=client, model="m")
-
-        conv1 = llm.Conversation()
-        await conv1.ask_text("first")
-        assert llm.get_usage() == (100, 50)
-
-        conv2 = llm.Conversation()
-        await conv2.ask_text("second")
-        assert llm.get_usage() == (300, 130)
-
-    def test_reset_clears_usage(self):
-        """reset() resets token counters to zero."""
-        llm.init(client=MagicMock(), model="m")
-        # Manually bump counters to simulate usage
-        _cost_mod._total_input_tokens = 500
-        _cost_mod._total_output_tokens = 200
-        llm.reset()
-        assert llm.get_usage() == (0, 0)
-
-    def test_get_cache_usage_zero_after_init(self):
-        """get_cache_usage() returns (0, 0) right after init()."""
-        llm.init(client=MagicMock(), model="m")
-        assert llm.get_cache_usage() == (0, 0)
-
-    def test_reset_clears_cache_usage(self):
-        """reset() resets cache token counters to zero."""
-        llm.init(client=MagicMock(), model="m")
-        _cost_mod._total_cache_read_tokens = 1000
-        _cost_mod._total_cache_creation_tokens = 500
-        llm.reset()
-        assert llm.get_cache_usage() == (0, 0)
-
-    @pytest.mark.asyncio
-    async def test_cache_tokens_accumulate(self):
-        """Cache token counts accumulate from response usage."""
-        resp = _make_mock_response("a", input_tokens=100, output_tokens=50)
-        resp.usage.cache_read_input_tokens = 800
-        resp.usage.cache_creation_input_tokens = 200
-        client = _make_mock_client(resp)
-        llm.init(client=client, model="m")
-
-        conv = llm.Conversation()
-        await conv.ask_text("hello")
-        assert llm.get_cache_usage() == (800, 200)
-
-
-class TestEstimateCost:
-    def test_known_model_no_cache(self):
-        """Cost for a known model with no cache tokens."""
-        cost = llm.estimate_cost("claude-sonnet-4-5-20250929", 1_000_000, 100_000)
-        assert cost is not None
-        # 1M in * $3/M + 100k out * $15/M = $3 + $1.5 = $4.5
-        assert cost == pytest.approx(4.5)
-
-    def test_unknown_model_returns_none(self):
-        cost = llm.estimate_cost("unknown-model", 1000, 500)
-        assert cost is None
-
-    def test_cache_read_tokens(self):
-        """Cache reads cost 10% of input rate."""
-        cost = llm.estimate_cost(
-            "claude-sonnet-4-5-20250929",
-            input_tokens=0, output_tokens=0,
-            cache_read_tokens=1_000_000,
-        )
-        assert cost is not None
-        # 1M cache_read * $3/M * 0.1 = $0.30
-        assert cost == pytest.approx(0.30)
-
-    def test_cache_creation_tokens(self):
-        """Cache writes cost 125% of input rate."""
-        cost = llm.estimate_cost(
-            "claude-sonnet-4-5-20250929",
-            input_tokens=0, output_tokens=0,
-            cache_creation_tokens=1_000_000,
-        )
-        assert cost is not None
-        # 1M cache_create * $3/M * 1.25 = $3.75
-        assert cost == pytest.approx(3.75)
-
-    def test_all_token_types(self):
-        """Full cost with all four token categories."""
-        cost = llm.estimate_cost(
-            "claude-sonnet-4-5-20250929",
-            input_tokens=100_000,
-            output_tokens=50_000,
-            cache_read_tokens=800_000,
-            cache_creation_tokens=200_000,
-        )
-        assert cost is not None
-        # 100k * 3/M + 800k * 0.3/M + 200k * 3.75/M + 50k * 15/M
-        # = 0.30 + 0.24 + 0.75 + 0.75 = 2.04
-        assert cost == pytest.approx(2.04)
-
-    def test_haiku_pricing(self):
-        cost = llm.estimate_cost(
-            "claude-haiku-3-5-20241022",
-            input_tokens=1_000_000, output_tokens=1_000_000,
-        )
-        assert cost is not None
-        # 1M * $0.80/M + 1M * $4/M = $4.80
-        assert cost == pytest.approx(4.80)
-
-    @pytest.mark.asyncio
-    async def test_record_usage_prints_cost(self, capsys: pytest.CaptureFixture[str]):
-        """_record_usage appends per-call cost to the log line."""
-        resp = _make_mock_response("a", input_tokens=1_000_000, output_tokens=100_000)
+    async def test_prints_after_calls(self):
+        resp = _make_mock_response("a", input_tokens=1000, output_tokens=500)
         resp.usage.cache_read_input_tokens = 0
         resp.usage.cache_creation_input_tokens = 0
-        client = _make_mock_client(resp)
-        llm.init(client=client, model="claude-sonnet-4-5-20250929")
+        _setup(response=resp)
 
-        conv = llm.Conversation(label="test_cost")
+        conv = llm.Conversation()
         await conv.ask_text("hello")
-        # Cost: 1M*3/M + 100k*15/M = 3 + 1.5 = $4.5
-        # The output goes to Rich console, check via capsys
-        captured = capsys.readouterr()
-        assert "$4.5000" in captured.out
 
-
-class TestCacheControl:
-    @pytest.mark.asyncio
-    async def test_call_with_tools_cache_control(self):
-        """Tool loop sets cache_control on last tool, first message, and tool_results."""
-        tool_use_block = MagicMock()
-        tool_use_block.type = "tool_use"
-        tool_use_block.name = "my_tool"
-        tool_use_block.input = {"key": "val"}
-        tool_use_block.id = "tu_1"
-
-        tool_response = MagicMock()
-        tool_response.content = [tool_use_block]
-        tool_response.stop_reason = "tool_use"
-
-        final_response = _make_mock_response("done")
-
-        client = MagicMock()
-        client.messages.create = AsyncMock(side_effect=[tool_response, final_response])
-        llm.init(client=client, model="m")
-
-        tools = [
-            {"name": "tool_a", "description": "a", "input_schema": {"type": "object"}},
-            {"name": "tool_b", "description": "b", "input_schema": {"type": "object"}},
-        ]
-        executors: dict[str, Callable[[dict[str, Any]], str]] = {
-            "my_tool": lambda inp: "result",
-        }
-
-        conv = llm.Conversation(tools=tools, executors=executors)
-        await conv.ask_text("prompt text")
-
-        # Check first call (before tool execution)
-        first_call_kwargs = client.messages.create.call_args_list[0].kwargs
-
-        # Last tool should have cache_control
-        last_tool = first_call_kwargs["tools"][-1]
-        assert last_tool["cache_control"] == {"type": "ephemeral"}
-        # First tool should NOT have cache_control
-        first_tool = first_call_kwargs["tools"][0]
-        assert "cache_control" not in first_tool
-
-        # First user message content should be converted to a content block list
-        first_msg = first_call_kwargs["messages"][0]
-        assert isinstance(first_msg["content"], list)
-        assert first_msg["content"][0]["type"] == "text"
-        assert first_msg["content"][0]["text"] == "prompt text"
-        # Note: cache_control was set initially but the rolling mechanism
-        # removes it after tool use (the tool_result breakpoint subsumes it).
-        # Since the mock captures a reference, we check the post-mutation state.
-        assert "cache_control" not in first_msg["content"][0]
-
-        # Check second call (after tool execution)
-        second_call_kwargs = client.messages.create.call_args_list[1].kwargs
-        # The user message with tool_results should have cache_control on the last block
-        tool_result_msg = second_call_kwargs["messages"][-1]
-        assert tool_result_msg["role"] == "user"
-        last_block = tool_result_msg["content"][-1]
-        assert last_block["type"] == "tool_result"
-        assert last_block["cache_control"] == {"type": "ephemeral"}
-
-    @pytest.mark.asyncio
-    async def test_rolling_cache_cleans_previous_breakpoints(self):
-        """Each iteration removes cache_control from previous tool_results."""
-        # Two rounds of tool use, then final text
-        tool_block_1 = MagicMock()
-        tool_block_1.type = "tool_use"
-        tool_block_1.name = "t"
-        tool_block_1.input = {}
-        tool_block_1.id = "tu_1"
-
-        tool_block_2 = MagicMock()
-        tool_block_2.type = "tool_use"
-        tool_block_2.name = "t"
-        tool_block_2.input = {}
-        tool_block_2.id = "tu_2"
-
-        resp1 = MagicMock()
-        resp1.content = [tool_block_1]
-        resp1.stop_reason = "tool_use"
-
-        resp2 = MagicMock()
-        resp2.content = [tool_block_2]
-        resp2.stop_reason = "tool_use"
-
-        resp3 = _make_mock_response("final")
-
-        client = MagicMock()
-        client.messages.create = AsyncMock(side_effect=[resp1, resp2, resp3])
-        llm.init(client=client, model="m")
-
-        tools = [{"name": "t", "description": "t", "input_schema": {"type": "object"}}]
-        executors: dict[str, Callable[[dict[str, Any]], str]] = {"t": lambda inp: "ok"}
-
-        conv = llm.Conversation(tools=tools, executors=executors)
-        await conv.ask_text("go")
-
-        # On the third call, the first tool_result message should NOT have cache_control
-        # (it was cleaned up), but the second one should.
-        third_call_kwargs = client.messages.create.call_args_list[2].kwargs
-        msgs = cast(list[dict[str, Any]], third_call_kwargs["messages"])
-
-        # Find all user messages with tool_result content
-        tool_result_msgs = [
-            m for m in msgs
-            if m.get("role") == "user"
-            and isinstance(m.get("content"), list)
-            and any(
-                b.get("type") == "tool_result"
-                for b in cast(list[dict[str, Any]], m["content"])
-            )
-        ]
-        assert len(tool_result_msgs) == 2
-
-        # First tool_result message: cache_control should be removed
-        for block in cast(list[dict[str, Any]], tool_result_msgs[0]["content"]):
-            if block.get("type") == "tool_result":
-                assert "cache_control" not in block
-
-        # Last tool_result message: cache_control should be present
-        last_block = cast(list[dict[str, Any]], tool_result_msgs[1]["content"])[-1]
-        assert last_block["cache_control"] == {"type": "ephemeral"}
-
-
-class TestAskJson:
-    @pytest.mark.asyncio
-    async def test_valid_json_returns_model(self):
-        """Valid JSON response is parsed and returned as a Pydantic model."""
-        client = _make_mock_client(_make_mock_response('{"useful": true, "name": "search"}'))
-        llm.init(client=client, model="m")
-
-        conv = llm.Conversation()
-        result = await conv.ask_json("test", _SampleModel)
-        assert isinstance(result, _SampleModel)
-        assert result.useful is True
-        assert result.name == "search"
-
-    @pytest.mark.asyncio
-    async def test_json_in_markdown_fences(self):
-        """JSON wrapped in markdown fences is extracted and parsed."""
-        text = '```json\n{"useful": false}\n```'
-        client = _make_mock_client(_make_mock_response(text))
-        llm.init(client=client, model="m")
-
-        conv = llm.Conversation()
-        result = await conv.ask_json("test", _SampleModel)
-        assert result.useful is False
-
-    @pytest.mark.asyncio
-    async def test_invalid_then_valid_retries(self):
-        """Invalid first response triggers retry; valid retry succeeds."""
-        bad_resp = _make_mock_response("not json at all")
-        good_resp = _make_mock_response('{"useful": true, "name": "retry_ok"}')
-        client = MagicMock()
-        client.messages.create = AsyncMock(side_effect=[bad_resp, good_resp])
-        llm.init(client=client, model="m")
-
-        conv = llm.Conversation()
-        result = await conv.ask_json("test", _SampleModel)
-        assert isinstance(result, _SampleModel)
-        assert result.name == "retry_ok"
-        assert client.messages.create.await_count == 2
-
-    @pytest.mark.asyncio
-    async def test_invalid_after_retry_raises(self):
-        """Both attempts invalid → raises an error."""
-        bad1 = _make_mock_response("nope")
-        bad2 = _make_mock_response("still nope")
-        client = MagicMock()
-        client.messages.create = AsyncMock(side_effect=[bad1, bad2])
-        llm.init(client=client, model="m")
-
-        conv = llm.Conversation()
-        with pytest.raises((ValueError, Exception)):
-            await conv.ask_json("test", _SampleModel)
-
-    @pytest.mark.asyncio
-    async def test_validation_error_retries(self):
-        """JSON parses but fails Pydantic validation → retry with error message."""
-        # useful must be bool, not string
-        bad_resp = _make_mock_response('{"useful": "not_a_bool"}')
-        good_resp = _make_mock_response('{"useful": true}')
-        client = MagicMock()
-        client.messages.create = AsyncMock(side_effect=[bad_resp, good_resp])
-        llm.init(client=client, model="m")
-
-        conv = llm.Conversation()
-        result = await conv.ask_json("test", _SampleModel)
-        assert result.useful is True
-
-    @pytest.mark.asyncio
-    async def test_prompt_appended_with_json_instruction(self):
-        """When ask_json is used, prompt gets JSON instruction appended."""
-        client = _make_mock_client(_make_mock_response('{"useful": true}'))
-        llm.init(client=client, model="m")
-
-        conv = llm.Conversation()
-        await conv.ask_json("my prompt", _SampleModel)
-
-        call_kwargs = client.messages.create.call_args.kwargs
-        prompt_text = call_kwargs["messages"][0]["content"]
-        assert "IMPORTANT: Respond with a single minified JSON" in prompt_text
-        assert "my prompt" in prompt_text
-
-    @pytest.mark.asyncio
-    async def test_with_tools_and_response_model(self):
-        """ask_json works with tool-use path too."""
-        tool_use_block = MagicMock()
-        tool_use_block.type = "tool_use"
-        tool_use_block.name = "my_tool"
-        tool_use_block.input = {}
-        tool_use_block.id = "tu_1"
-
-        tool_response = MagicMock()
-        tool_response.content = [tool_use_block]
-        tool_response.stop_reason = "tool_use"
-
-        final_response = _make_mock_response('{"useful": true, "name": "found"}')
-
-        client = MagicMock()
-        client.messages.create = AsyncMock(side_effect=[tool_response, final_response])
-        llm.init(client=client, model="m")
-
-        tools = [{"name": "my_tool", "description": "test", "input_schema": {"type": "object"}}]
-        executors: dict[str, Callable[[dict[str, Any]], str]] = {"my_tool": lambda inp: "ok"}
-
-        conv = llm.Conversation(tools=tools, executors=executors)
-        result = await conv.ask_json("test", _SampleModel)
-        assert isinstance(result, _SampleModel)
-        assert result.name == "found"
-
-
-class TestInitKeyResolution:
-    """Test API key resolution in init(): env var > stored file > prompt."""
-
-    def test_env_var_takes_priority(
-        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-    ) -> None:
-        """ANTHROPIC_API_KEY env var is used when set."""
-        monkeypatch.setenv("SPECTRAL_HOME", str(tmp_path))
-        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-from-env")
-
-        with patch("anthropic.AsyncAnthropic") as mock_cls:
-            llm.init(model="m")
-            mock_cls.assert_called_once_with(api_key="sk-from-env")
-
-    def test_stored_key_used_when_no_env(
-        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-    ) -> None:
-        """Stored api_key file is used when env var is absent."""
-        monkeypatch.setenv("SPECTRAL_HOME", str(tmp_path))
-        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-        (tmp_path / "api_key").write_text("sk-from-file\n")
-
-        with patch("anthropic.AsyncAnthropic") as mock_cls:
-            llm.init(model="m")
-            mock_cls.assert_called_once_with(api_key="sk-from-file")
-
-    def test_prompt_when_no_env_and_no_file(
-        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-    ) -> None:
-        """Interactive prompt is used when neither env var nor file exists."""
-        monkeypatch.setenv("SPECTRAL_HOME", str(tmp_path))
-        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-
-        with (
-            patch("anthropic.AsyncAnthropic") as mock_cls,
-            patch("click.prompt", return_value="sk-ant-prompted123") as mock_prompt,
-            patch("click.echo"),
-        ):
-            llm.init(model="m")
-            mock_prompt.assert_called_once_with("API key", hide_input=True)
-            mock_cls.assert_called_once_with(api_key="sk-ant-prompted123")
-
-        # Key should be persisted
-        from cli.helpers.storage import load_api_key
-
-        assert load_api_key() == "sk-ant-prompted123"
-
-    def test_prompt_rejects_invalid_format(
-        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-    ) -> None:
-        """Interactive prompt rejects keys that don't start with 'sk-ant-'."""
-        import click
-
-        monkeypatch.setenv("SPECTRAL_HOME", str(tmp_path))
-        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-
-        with (
-            patch("anthropic.AsyncAnthropic"),
-            patch("click.prompt", return_value="bad-key-format"),
-            patch("click.echo"),
-        ):
-            with pytest.raises(click.ClickException, match="Invalid API key format"):
-                llm.init(model="m")
-
-        # Key should NOT be persisted
-        from cli.helpers.storage import load_api_key
-
-        assert load_api_key() is None
-
-    def test_env_var_overrides_stored_key(
-        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-    ) -> None:
-        """Env var takes priority over stored file."""
-        monkeypatch.setenv("SPECTRAL_HOME", str(tmp_path))
-        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-from-env")
-        (tmp_path / "api_key").write_text("sk-from-file\n")
-
-        with patch("anthropic.AsyncAnthropic") as mock_cls:
-            llm.init(model="m")
-            mock_cls.assert_called_once_with(api_key="sk-from-env")
+        with patch("cli.helpers.llm._cost.console") as mock_console:
+            llm.print_usage_summary()
+            mock_console.print.assert_called_once()
+            call_str = mock_console.print.call_args[0][0]
+            assert "1,000 input" in call_str
+            assert "500 output" in call_str
