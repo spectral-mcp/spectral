@@ -3,7 +3,7 @@
  */
 
 import { captureState, State, resetState } from './state.js';
-import { padId, now } from './utils.js';
+import { padId, now, extractDomain } from './utils.js';
 
 /**
  * Tell the content script to stop capturing.
@@ -89,9 +89,7 @@ export async function startCapture(tabId) {
     // Get tab info
     const tab = await chrome.tabs.get(tabId);
     const url = new URL(tab.url);
-
-    // Strip common prefixes (www., m., app.) to get a clean domain name
-    const domain = url.hostname.replace(/^(www\.|m\.|app\.)/, '');
+    const domain = extractDomain(tab.url);
 
     captureState.appInfo = {
       name: domain,

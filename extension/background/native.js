@@ -3,7 +3,7 @@
  */
 
 import { captureState, State } from './state.js';
-import { uuid, now } from './utils.js';
+import { uuid, now, slugify } from './utils.js';
 
 /**
  * Encode a Uint8Array (or null) to base64 string (or null).
@@ -15,18 +15,6 @@ function bytesToBase64(bytes) {
     binary += String.fromCharCode(bytes[i]);
   }
   return btoa(binary);
-}
-
-/**
- * Slugify an app name: lowercase, replace non-alphanumeric with hyphens, trim.
- */
-function slugify(name) {
-  return name
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '')
-    || 'app';
 }
 
 /**
@@ -132,4 +120,21 @@ export async function sendCapture() {
     captureState.state = State.IDLE;
     throw error;
   }
+}
+
+/**
+ * Send auth headers to the spectral CLI via Chrome Native Messaging.
+ */
+export async function sendAuth(appName, displayName, headers) {
+  const payload = {
+    type: 'set_auth',
+    app_name: appName,
+    display_name: displayName,
+    headers,
+  };
+
+  return chrome.runtime.sendNativeMessage(
+    'com.spectral.capture_host',
+    payload
+  );
 }

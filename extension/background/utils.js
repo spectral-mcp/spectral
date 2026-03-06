@@ -61,6 +61,27 @@ export function stringToBytes(str) {
 }
 
 /**
+ * Slugify an app name: lowercase, replace non-alphanumeric with hyphens, trim.
+ */
+export function slugify(name) {
+  return name
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+    || 'app';
+}
+
+/**
+ * Extract a clean domain name from a URL string.
+ * Strips common prefixes (www., m., app.) from the hostname.
+ */
+export function extractDomain(urlString) {
+  const url = new URL(urlString);
+  return url.hostname.replace(/^(www\.|m\.|app\.)/, '');
+}
+
+/**
  * Convert headers from Chrome format to our format.
  * Chrome: { "Name": "value" } or { name: { name, value } }
  * Ours: [{ name, value }]
