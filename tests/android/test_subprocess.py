@@ -1,11 +1,11 @@
-"""Tests for cli/helpers/subprocess.py."""
+"""Tests for subprocess runner."""
 
 import subprocess
 from unittest.mock import patch
 
 import pytest
 
-from cli.helpers.subprocess import run_cmd
+from cli.commands.android.external_tools.subprocess import run_cmd
 
 
 class TestRunCmd:

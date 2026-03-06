@@ -11,7 +11,7 @@ from cli.commands.android.external_tools.bootstrap import (
     check_java,
     download_jar,
 )
-from cli.helpers.subprocess import run_cmd
+from cli.commands.android.external_tools.subprocess import run_cmd
 
 _VERSION = "1.3.0"
 _URL = f"https://github.com/patrickfav/uber-apk-signer/releases/download/v{_VERSION}/uber-apk-signer-{_VERSION}.jar"

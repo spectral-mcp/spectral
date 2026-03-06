@@ -9,7 +9,7 @@ from cli.commands.android.external_tools.bootstrap import (
     check_java,
     download_jar,
 )
-from cli.helpers.subprocess import run_cmd
+from cli.commands.android.external_tools.subprocess import run_cmd
 
 _VERSION = "2.11.1"
 _URL = f"https://github.com/iBotPeaches/Apktool/releases/download/v{_VERSION}/apktool_{_VERSION}.jar"

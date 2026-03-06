@@ -7,7 +7,7 @@ import shutil
 import socket
 import subprocess
 
-from cli.helpers.subprocess import run_cmd
+from cli.commands.android.external_tools.subprocess import run_cmd
 
 
 class AdbError(Exception):
