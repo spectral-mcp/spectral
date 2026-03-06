@@ -12,8 +12,8 @@ from cli.commands.mcp.types import (
     ToolCandidate,
 )
 from cli.helpers.http import sanitize_headers
+from cli.helpers.json import minified, truncate_json
 import cli.helpers.llm as llm
-from cli.helpers.llm import compact_json, truncate_json
 
 IDENTIFY_INSTRUCTIONS = """\
 You are analyzing captured HTTP traffic from a web application to identify and document API capabilities as MCP tools.
@@ -98,7 +98,7 @@ def format_request_details(trace: Trace) -> str:
         try:
             body: Any = json.loads(trace.request_body)
             truncated = truncate_json(body, max_keys=15)
-            parts.append(f"Request body: {compact_json(truncated)}")
+            parts.append(f"Request body: {minified(truncated)}")
         except (json.JSONDecodeError, UnicodeDecodeError):
             raw = trace.request_body.decode(errors="replace")[:500]
             parts.append(f"Request body (raw): {raw}")

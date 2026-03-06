@@ -15,9 +15,9 @@ import jq
 
 from cli.commands.capture.types import Context, Trace
 from cli.helpers.http import sanitize_headers
-from cli.helpers.llm import compact_json, truncate_json
+from cli.helpers.json import minified, truncate_json
+from cli.helpers.json.schema_inference import infer_schema
 from cli.helpers.llm_tools import INVESTIGATION_TOOLS, TOOL_EXECUTORS
-from cli.helpers.schemas import infer_schema
 
 
 def make_inspect_trace_tool() -> dict[str, Any]:
@@ -77,7 +77,7 @@ def execute_inspect_trace(
             result["response_body_raw"] = trace.response_body.decode(
                 errors="replace"
             )[:2000]
-    serialized = compact_json(result)
+    serialized = minified(result)
     if len(serialized) > 4000:
         # Re-truncate with tighter limits to stay under budget
         if trace.response_body:
@@ -87,7 +87,7 @@ def execute_inspect_trace(
                 )
             except (json.JSONDecodeError, UnicodeDecodeError):
                 pass
-        serialized = compact_json(result)
+        serialized = minified(result)
     return serialized
 
 
@@ -137,7 +137,7 @@ def _execute_inspect_request(
             result["request_body_raw"] = trace.request_body.decode(
                 errors="replace"
             )[:1000]
-    return compact_json(result)
+    return minified(result)
 
 
 def _make_infer_request_schema_tool() -> dict[str, Any]:
@@ -183,7 +183,7 @@ def _execute_infer_request_schema(
         return "No JSON request bodies found for the given trace IDs."
 
     schema = infer_schema(samples)
-    return compact_json(schema)
+    return minified(schema)
 
 
 _QUERY_TRACES_MAX_OUTPUT = 8000
@@ -255,7 +255,7 @@ def _execute_query_traces(
         return f"Invalid jq expression: {exc}"
 
     results: list[Any] = compiled.input(records).all()  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
-    output = compact_json(results)
+    output = minified(results)
 
     if len(output) > _QUERY_TRACES_MAX_OUTPUT:
         return (
@@ -322,7 +322,7 @@ def _execute_inspect_context(
             },
             max_keys=20,
         )
-    return compact_json(result)
+    return minified(result)
 
 
 def make_mcp_tools(

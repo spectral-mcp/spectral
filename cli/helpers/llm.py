@@ -544,46 +544,23 @@ def _save_debug(
 
 
 def compact_json(obj: Any) -> str:
-    """Serialize *obj* to compact JSON (no whitespace) for LLM prompts."""
-    return json.dumps(obj, separators=(",", ":"), ensure_ascii=False)
+    """Serialize *obj* to compact JSON (no whitespace) for LLM prompts.
+
+    .. deprecated:: Use :func:`cli.helpers.json.minified` instead.
+    """
+    from cli.helpers.json.serialization import minified
+
+    return minified(obj)
 
 
 def truncate_json(obj: Any, max_keys: int = 10, max_depth: int = 4) -> Any:
     """Truncate a JSON-like object for LLM consumption.
 
-    Limits breadth (max_keys per dict, 3 items per list), depth, and string length.
+    .. deprecated:: Use :func:`cli.helpers.json.truncate_json` instead.
     """
-    return _truncate(obj, max_keys, max_depth, 0)
+    from cli.helpers.json.simplification import truncate_json as _truncate_json
 
-
-def _truncate(obj: Any, max_keys: int, max_depth: int, depth: int) -> Any:
-    if depth >= max_depth:
-        if isinstance(obj, dict):
-            n: int = len(obj)  # pyright: ignore[reportUnknownArgumentType]
-            return {"_truncated": f"{n} keys"}
-        if isinstance(obj, list):
-            n = len(obj)  # pyright: ignore[reportUnknownArgumentType]
-            return [f"...{n} items"]
-        if isinstance(obj, str) and len(obj) > 200:
-            return obj[:200] + "..."
-        return obj
-    if isinstance(obj, dict):
-        all_items: list[tuple[str, Any]] = list(obj.items())  # pyright: ignore[reportUnknownVariableType, reportUnknownArgumentType]
-        items = all_items[:max_keys]
-        result = {k: _truncate(v, max_keys, max_depth, depth + 1) for k, v in items}
-        if len(all_items) > max_keys:
-            result["_truncated"] = f"{len(all_items) - max_keys} more keys"
-        return result
-    if isinstance(obj, list):
-        items_list: list[Any] = obj[:3]  # pyright: ignore[reportUnknownVariableType]
-        truncated = [_truncate(item, max_keys, max_depth, depth + 1) for item in items_list]
-        total: int = len(obj)  # pyright: ignore[reportUnknownArgumentType]
-        if total > 3:
-            truncated.append(f"...{total - 3} more items")
-        return truncated
-    if isinstance(obj, str) and len(obj) > 200:
-        return obj[:200] + "..."
-    return obj
+    return _truncate_json(obj, max_keys, max_depth)
 
 
 def extract_json(text: str) -> dict[str, Any] | list[Any]:
@@ -625,30 +602,16 @@ def extract_json(text: str) -> dict[str, Any] | list[Any]:
     raise ValueError(f"Could not extract JSON from LLM response: {text[:200]}")
 
 
-def _readable_json(obj: Any) -> str:
-    """Format *obj* as semi-compact JSON for debug readability.
-
-    Short inner arrays/objects (<=80 chars when collapsed) are placed on a
-    single line while larger structures remain indented.  Uses compact-json
-    for reliable formatting.
-    """
-    import compact_json  # type: ignore[import-untyped]
-
-    formatter = compact_json.Formatter()
-    formatter.indent_spaces = 2
-    formatter.max_inline_length = 80
-    formatter.ensure_ascii = False
-    return formatter.serialize(obj)
-
-
 def _reformat_debug_text(text: str) -> str:
     """Reformat JSON blobs in debug prose for readability.
 
     Splits on newlines, tries ``json.loads`` on each line, and replaces
-    parseable ones with ``_readable_json`` output.  This handles minified
-    JSON lines (including those inside markdown code fences) while leaving
-    non-JSON lines untouched.
+    parseable ones with compact output.  This handles minified JSON lines
+    (including those inside markdown code fences) while leaving non-JSON
+    lines untouched.
     """
+    from cli.helpers.json.serialization import compact
+
     lines = text.split("\n")
     result: list[str] = []
     for line in lines:
@@ -658,7 +621,7 @@ def _reformat_debug_text(text: str) -> str:
             continue
         try:
             obj = json.loads(stripped)
-            result.append(_readable_json(obj))
+            result.append(compact(obj))
         except (json.JSONDecodeError, ValueError):
             result.append(line)
     return "\n".join(result)

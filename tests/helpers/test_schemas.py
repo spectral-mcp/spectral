@@ -6,13 +6,15 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from cli.helpers.json.schema_inference import (
+    detect_format,
+    infer_schema,
+    infer_type,
+    infer_type_from_values,
+)
 from cli.helpers.schemas import (
-    _detect_format,
-    _infer_type,
-    _infer_type_from_values,
     infer_path_schema,
     infer_query_schema,
-    infer_schema,
     resolve_map_candidates,
 )
 from tests.conftest import make_trace
@@ -178,57 +180,57 @@ class TestInferSchema:
 
 class TestInferType:
     def test_bool_before_int(self):
-        assert _infer_type(True) == "boolean"
+        assert infer_type(True) == "boolean"
 
     def test_int(self):
-        assert _infer_type(42) == "integer"
+        assert infer_type(42) == "integer"
 
     def test_float(self):
-        assert _infer_type(3.14) == "number"
+        assert infer_type(3.14) == "number"
 
     def test_string(self):
-        assert _infer_type("hello") == "string"
+        assert infer_type("hello") == "string"
 
     def test_list(self):
-        assert _infer_type([1, 2]) == "array"
+        assert infer_type([1, 2]) == "array"
 
     def test_dict(self):
-        assert _infer_type({"a": 1}) == "object"
+        assert infer_type({"a": 1}) == "object"
 
     def test_none(self):
-        assert _infer_type(None) == "string"
+        assert infer_type(None) == "string"
 
 
 class TestInferTypeFromValues:
     def test_integers(self):
-        assert _infer_type_from_values(["1", "2", "3"]) == "integer"
+        assert infer_type_from_values(["1", "2", "3"]) == "integer"
 
     def test_numbers(self):
-        assert _infer_type_from_values(["1.5", "2.3"]) == "number"
+        assert infer_type_from_values(["1.5", "2.3"]) == "number"
 
     def test_booleans(self):
-        assert _infer_type_from_values(["true", "false"]) == "boolean"
+        assert infer_type_from_values(["true", "false"]) == "boolean"
 
     def test_strings(self):
-        assert _infer_type_from_values(["hello", "world"]) == "string"
+        assert infer_type_from_values(["hello", "world"]) == "string"
 
 
 class TestDetectFormat:
     def test_date_time(self):
         assert (
-            _detect_format(["2024-01-15T10:30:00Z", "2024-02-20T14:00:00Z"])
+            detect_format(["2024-01-15T10:30:00Z", "2024-02-20T14:00:00Z"])
             == "date-time"
         )
 
     def test_date_only(self):
-        assert _detect_format(["2024-01-15", "2024-02-20"]) == "date"
+        assert detect_format(["2024-01-15", "2024-02-20"]) == "date"
 
     def test_email(self):
-        assert _detect_format(["alice@example.com", "bob@test.org"]) == "email"
+        assert detect_format(["alice@example.com", "bob@test.org"]) == "email"
 
     def test_uuid(self):
         assert (
-            _detect_format(
+            detect_format(
                 [
                     "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
                     "11111111-2222-3333-4444-555555555555",
@@ -239,15 +241,15 @@ class TestDetectFormat:
 
     def test_uri(self):
         assert (
-            _detect_format(["https://example.com/page1", "https://example.com/page2"])
+            detect_format(["https://example.com/page1", "https://example.com/page2"])
             == "uri"
         )
 
     def test_no_format(self):
-        assert _detect_format(["hello", "world"]) is None
+        assert detect_format(["hello", "world"]) is None
 
     def test_non_string_values(self):
-        assert _detect_format([42, 100]) is None
+        assert detect_format([42, 100]) is None
 
 
 class TestInferPathSchema:

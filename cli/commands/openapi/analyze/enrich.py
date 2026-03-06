@@ -13,8 +13,8 @@ from cli.commands.openapi.analyze.types import (
 )
 from cli.helpers.console import console
 from cli.helpers.correlator import Correlation
+from cli.helpers.json import minified
 import cli.helpers.llm as llm
-from cli.helpers.llm import compact_json
 
 _MAX_SUMMARY_CHARS = 40_000
 _MAX_RESPONSE_SCHEMA_CHARS = 5_000
@@ -25,7 +25,7 @@ async def enrich_endpoints(ctx: EnrichmentContext) -> list[EndpointSpec]:
 
     async def _enrich_one(ep: EndpointSpec) -> None:
         summary = _build_endpoint_summary(ep, ctx.traces, ctx.correlations)
-        summary_json = compact_json(summary)
+        summary_json = minified(summary)
         if len(summary_json) > _MAX_SUMMARY_CHARS:
             est_tokens = len(summary_json) // 4
             console.print(
@@ -142,7 +142,7 @@ def _build_endpoint_summary(
                 resp_info["content_type"] = resp.content_type
             if resp.schema_:
                 stripped = _strip_non_leaf_observed(resp.schema_)
-                serialized = compact_json(stripped)
+                serialized = minified(stripped)
                 if len(serialized) <= _MAX_RESPONSE_SCHEMA_CHARS:
                     resp_info["schema"] = stripped
                 else:

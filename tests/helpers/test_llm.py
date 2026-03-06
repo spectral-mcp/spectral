@@ -388,8 +388,10 @@ class TestCompactJson:
 
 class TestReadableJson:
     def test_collapses_short_blocks(self):
+        from cli.helpers.json.serialization import compact
+
         obj = {"name": "Alice", "tags": ["admin", "user"], "address": {"city": "Paris", "zip": "75001"}}
-        result = llm._readable_json(obj)
+        result = compact(obj)
         # Short arrays/objects should be on one line
         assert '["admin", "user"]' in result
         assert '{"city": "Paris", "zip": "75001"}' in result
@@ -397,8 +399,10 @@ class TestReadableJson:
         assert "\n" in result
 
     def test_expands_large_blocks(self):
+        from cli.helpers.json.serialization import compact
+
         obj = {"data": ["a" * 30, "b" * 30, "c" * 30]}
-        result = llm._readable_json(obj)
+        result = compact(obj)
         # The inner array is too wide to collapse (>80 chars), so it stays multi-line
         lines = result.strip().splitlines()
         assert len(lines) > 2

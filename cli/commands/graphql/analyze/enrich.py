@@ -12,8 +12,8 @@ from cli.commands.graphql.analyze.types import (
 )
 from cli.helpers.console import console
 from cli.helpers.correlator import Correlation
+from cli.helpers.json import minified
 import cli.helpers.llm as llm
-from cli.helpers.llm import compact_json
 
 
 async def enrich_graphql(
@@ -58,7 +58,7 @@ async def enrich_graphql(
 Below is a type reconstructed from captured traffic. The "observed_values" show sample values
 seen in real responses — use these to understand business meaning.
 
-{compact_json(summary)}
+{minified(summary)}
 
 Provide a JSON response:
 {{
@@ -86,7 +86,7 @@ Respond in compact JSON only (no indentation)."""
         values_list = sorted(enum_values)
         prompt = f"""You are analyzing a GraphQL API discovered from "{app_name}".
 
-An enum type "{enum_name}" was found with these values: {compact_json(values_list)}
+An enum type "{enum_name}" was found with these values: {minified(values_list)}
 
 Provide a JSON response:
 {{
