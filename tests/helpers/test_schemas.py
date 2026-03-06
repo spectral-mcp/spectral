@@ -6,14 +6,15 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from cli.helpers.json import analyze_schema, infer_schema
-from cli.helpers.json._schema_analysis import _resolve_map_candidates
-from cli.helpers.json._schema_inference import _detect_format, _infer_type
-from cli.helpers.schemas import (
-    _coerce_value,
+from cli.helpers.schema import (
+    analyze_schema,
     infer_path_schema,
     infer_query_schema,
+    infer_schema,
 )
+from cli.helpers.schema._scalars import coerce_value
+from cli.helpers.schema._schema_analysis import _resolve_map_candidates
+from cli.helpers.schema._schema_inference import _detect_format, _infer_type
 from tests.conftest import make_trace
 
 
@@ -199,19 +200,19 @@ class TestInferType:
 
 class TestCoerceValue:
     def test_integer(self):
-        assert _coerce_value("123") == 123
+        assert coerce_value("123") == 123
 
     def test_float(self):
-        assert _coerce_value("1.5") == 1.5
+        assert coerce_value("1.5") == 1.5
 
     def test_boolean_true(self):
-        assert _coerce_value("true") is True
+        assert coerce_value("true") is True
 
     def test_boolean_false(self):
-        assert _coerce_value("False") is False
+        assert coerce_value("False") is False
 
     def test_string(self):
-        assert _coerce_value("hello") == "hello"
+        assert coerce_value("hello") == "hello"
 
 
 class TestDetectFormat:
@@ -608,11 +609,7 @@ class TestDynamicKeyDetection:
     @pytest.mark.asyncio
     async def test_single_uuid_key_detected(self):
         """A single UUID key is enough to trigger uuid detection."""
-        samples = [
-            {
-                "a1b2c3d4-e5f6-7890-abcd-ef1234567890": {"status": "active"}
-            }
-        ]
+        samples = [{"a1b2c3d4-e5f6-7890-abcd-ef1234567890": {"status": "active"}}]
         schema = await analyze_schema(samples)
         assert "additionalProperties" in schema
         assert schema["x-key-pattern"] == "uuid"
@@ -629,7 +626,7 @@ class TestStructuralAnnotation:
             }
         ]
         mock_ask = AsyncMock(return_value='[{"group": 1, "is_map": true}]')
-        with patch("cli.helpers.json._schema_analysis.llm") as mock_llm:
+        with patch("cli.helpers.schema._schema_analysis.llm") as mock_llm:
             mock_llm.ask = mock_ask
 
             schema = await analyze_schema(samples)
@@ -641,9 +638,7 @@ class TestStructuralAnnotation:
     @pytest.mark.asyncio
     async def test_structural_ignores_scalars(self):
         """5+ keys with scalar values should not be annotated."""
-        samples = [
-            {f"key-{i}": f"value-{i}" for i in range(6)}
-        ]
+        samples = [{f"key-{i}": f"value-{i}" for i in range(6)}]
         schema = await analyze_schema(samples)
         assert "x-map-candidate" not in schema
         assert "properties" in schema
@@ -651,12 +646,7 @@ class TestStructuralAnnotation:
     @pytest.mark.asyncio
     async def test_structural_below_threshold(self):
         """4 keys same shape should not be annotated (below _MIN_STRUCTURAL_KEYS)."""
-        samples = [
-            {
-                f"key-{i}": {"id": i, "name": f"item-{i}"}
-                for i in range(4)
-            }
-        ]
+        samples = [{f"key-{i}": {"id": i, "name": f"item-{i}"} for i in range(4)}]
         schema = await analyze_schema(samples)
         assert "x-map-candidate" not in schema
 
@@ -683,8 +673,22 @@ class TestResolveMapCandidates:
         schema: dict[str, Any] = {
             "type": "object",
             "properties": {
-                "key-0": {"type": "object", "properties": {"id": {"type": "integer", "examples": [0]}, "name": {"type": "string", "examples": ["item-0"]}}, "examples": [{"id": 0, "name": "item-0"}]},
-                "key-1": {"type": "object", "properties": {"id": {"type": "integer", "examples": [1]}, "name": {"type": "string", "examples": ["item-1"]}}, "examples": [{"id": 1, "name": "item-1"}]},
+                "key-0": {
+                    "type": "object",
+                    "properties": {
+                        "id": {"type": "integer", "examples": [0]},
+                        "name": {"type": "string", "examples": ["item-0"]},
+                    },
+                    "examples": [{"id": 0, "name": "item-0"}],
+                },
+                "key-1": {
+                    "type": "object",
+                    "properties": {
+                        "id": {"type": "integer", "examples": [1]},
+                        "name": {"type": "string", "examples": ["item-1"]},
+                    },
+                    "examples": [{"id": 1, "name": "item-1"}],
+                },
             },
             "x-map-candidate": {
                 "keys": ["key-0", "key-1", "key-2", "key-3", "key-4"],
@@ -694,7 +698,7 @@ class TestResolveMapCandidates:
         }
 
         mock_ask = AsyncMock(return_value='[{"group": 1, "is_map": true}]')
-        with patch("cli.helpers.json._schema_analysis.llm") as mock_llm:
+        with patch("cli.helpers.schema._schema_analysis.llm") as mock_llm:
             mock_llm.ask = mock_ask
 
             await _resolve_map_candidates(schema)
@@ -710,8 +714,16 @@ class TestResolveMapCandidates:
         schema: dict[str, Any] = {
             "type": "object",
             "properties": {
-                "config": {"type": "object", "properties": {"a": {"type": "string"}}, "examples": [{"a": "x"}]},
-                "status": {"type": "object", "properties": {"a": {"type": "string"}}, "examples": [{"a": "y"}]},
+                "config": {
+                    "type": "object",
+                    "properties": {"a": {"type": "string"}},
+                    "examples": [{"a": "x"}],
+                },
+                "status": {
+                    "type": "object",
+                    "properties": {"a": {"type": "string"}},
+                    "examples": [{"a": "y"}],
+                },
             },
             "x-map-candidate": {
                 "keys": ["config", "status", "meta", "info", "extra"],
@@ -721,7 +733,7 @@ class TestResolveMapCandidates:
         }
 
         mock_ask = AsyncMock(return_value='[{"group": 1, "is_map": false}]')
-        with patch("cli.helpers.json._schema_analysis.llm") as mock_llm:
+        with patch("cli.helpers.schema._schema_analysis.llm") as mock_llm:
             mock_llm.ask = mock_ask
 
             await _resolve_map_candidates(schema)
@@ -739,7 +751,7 @@ class TestResolveMapCandidates:
         }
 
         mock_ask = AsyncMock()
-        with patch("cli.helpers.json._schema_analysis.llm") as mock_llm:
+        with patch("cli.helpers.schema._schema_analysis.llm") as mock_llm:
             mock_llm.ask = mock_ask
             await _resolve_map_candidates(schema)
 
@@ -751,8 +763,16 @@ class TestResolveMapCandidates:
         inner: dict[str, Any] = {
             "type": "object",
             "properties": {
-                "k0": {"type": "object", "properties": {"id": {"type": "integer", "examples": [0]}}, "examples": [{"id": 0}]},
-                "k1": {"type": "object", "properties": {"id": {"type": "integer", "examples": [1]}}, "examples": [{"id": 1}]},
+                "k0": {
+                    "type": "object",
+                    "properties": {"id": {"type": "integer", "examples": [0]}},
+                    "examples": [{"id": 0}],
+                },
+                "k1": {
+                    "type": "object",
+                    "properties": {"id": {"type": "integer", "examples": [1]}},
+                    "examples": [{"id": 1}],
+                },
             },
             "x-map-candidate": {
                 "keys": ["k0", "k1", "k2", "k3", "k4"],
@@ -768,7 +788,7 @@ class TestResolveMapCandidates:
         }
 
         mock_ask = AsyncMock(return_value='[{"group": 1, "is_map": true}]')
-        with patch("cli.helpers.json._schema_analysis.llm") as mock_llm:
+        with patch("cli.helpers.schema._schema_analysis.llm") as mock_llm:
             mock_llm.ask = mock_ask
 
             await _resolve_map_candidates(schema)

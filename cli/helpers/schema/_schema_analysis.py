@@ -12,8 +12,8 @@ from collections import defaultdict
 import re
 from typing import Any, cast
 
-from cli.helpers.json._schema_inference import infer_schema
 import cli.helpers.llm as llm
+from cli.helpers.schema._schema_inference import infer_schema
 
 # ---------------------------------------------------------------------------
 # Dynamic key pattern detection (regex-based, deterministic)

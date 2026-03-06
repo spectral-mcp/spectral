@@ -17,8 +17,7 @@ from cli.commands.openapi.analyze.types import (
     ResponseSpec,
 )
 from cli.helpers.http import get_header
-from cli.helpers.json import analyze_schema
-from cli.helpers.schemas import infer_path_schema, infer_query_schema
+from cli.helpers.schema import analyze_schema, infer_path_schema, infer_query_schema
 
 
 def pattern_to_regex(pattern: str) -> re.Pattern[str]:

@@ -1,40 +1,14 @@
-"""Schema inference utilities.
-
-All four parts of an endpoint (path params, query params, request body,
-response body) use the same annotated JSON-schema format produced by
-``infer_schema``.  The ``infer_path_schema`` and ``infer_query_schema``
-helpers build schemas from trace URLs so that all four are uniform.
-"""
+"""Path parameter schema inference."""
 
 from __future__ import annotations
 
-from collections import defaultdict
 import re
 from typing import Any
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import urlparse
 
 from cli.commands.capture.types import Trace
-from cli.helpers.json import infer_schema
-
-# Re-export for convenience
-__all__ = [
-    "infer_schema",
-    "infer_path_schema",
-    "infer_query_schema",
-]
-
-
-def _coerce_value(s: str) -> Any:
-    """Convert a string value to its natural Python type."""
-    if s.isdigit():
-        return int(s)
-    try:
-        return float(s)
-    except ValueError:
-        pass
-    if s.lower() in ("true", "false"):
-        return s.lower() == "true"
-    return s
+from cli.helpers.schema._scalars import coerce_value
+from cli.helpers.schema._schema_inference import infer_schema
 
 
 def _extract_path_param_values(
@@ -86,14 +60,12 @@ def _build_samples(
         sample: dict[str, Any] = {}
         for name, vals in observed.items():
             raw = vals[i] if i < len(vals) else vals[-1]
-            sample[name] = _coerce_value(raw)
+            sample[name] = coerce_value(raw)
         samples.append(sample)
     return samples
 
 
-def infer_path_schema(
-    traces: list[Trace], path_pattern: str
-) -> dict[str, Any] | None:
+def infer_path_schema(traces: list[Trace], path_pattern: str) -> dict[str, Any] | None:
     """Infer an annotated JSON schema for path parameters.
 
     Extracts parameter values from trace URLs using the path pattern, then
@@ -109,43 +81,10 @@ def infer_path_schema(
 
     observed = _extract_path_param_values(traces, path_pattern, param_names)
     samples = _build_samples(observed)
-    schema = infer_schema(samples) if samples else infer_schema([{name: "" for name in param_names}])
+    schema = (
+        infer_schema(samples)
+        if samples
+        else infer_schema([{name: "" for name in param_names}])
+    )
     schema["required"] = list(param_names)
     return schema
-
-
-def infer_query_schema(traces: list[Trace]) -> dict[str, Any] | None:
-    """Infer an annotated JSON schema for query string parameters.
-
-    Collects query-string values across all *traces*, infers type and
-    format per parameter.  Returns the same annotated-schema format as
-    ``infer_schema``.
-
-    Returns ``None`` when no query parameters are found.
-    """
-    # Collect raw string values per query parameter across all traces.
-    raw_params: dict[str, list[str]] = defaultdict(list)
-    for trace in traces:
-        parsed = urlparse(trace.meta.request.url)
-        qs = parse_qs(parsed.query)
-        for key, values in qs.items():
-            raw_params[key].extend(values)
-
-    if not raw_params:
-        return None
-
-    # Build one sample dict per trace, coercing string values to Python types.
-    samples: list[dict[str, Any]] = []
-    for trace in traces:
-        parsed = urlparse(trace.meta.request.url)
-        qs = parse_qs(parsed.query)
-        if qs:
-            sample: dict[str, Any] = {}
-            for key, values in qs.items():
-                sample[key] = _coerce_value(values[0])
-            samples.append(sample)
-
-    if not samples:
-        return None
-
-    return infer_schema(samples)

@@ -15,8 +15,9 @@ import jq
 
 from cli.commands.capture.types import Context, Trace
 from cli.helpers.http import sanitize_headers
-from cli.helpers.json import infer_schema, minified, truncate_json
+from cli.helpers.json import minified, truncate_json
 from cli.helpers.llm_tools import INVESTIGATION_TOOLS, TOOL_EXECUTORS
+from cli.helpers.schema import infer_schema
 
 
 def make_inspect_trace_tool() -> dict[str, Any]:
