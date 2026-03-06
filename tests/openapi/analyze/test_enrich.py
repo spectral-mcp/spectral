@@ -9,7 +9,6 @@ import pytest
 from cli.commands.openapi.analyze.enrich import (
     _apply_enrichment,
     _build_endpoint_summary,
-    _strip_non_leaf_observed,
     enrich_endpoints,
 )
 from cli.commands.openapi.analyze.types import (
@@ -30,7 +29,7 @@ class TestEnrichSizeGuard:
         big_props = {
             f"field_{i}": {
                 "type": "string",
-                "observed": [f"value_{i}_{'x' * 200}"],
+                "examples": [f"value_{i}_{'x' * 200}"],
             }
             for i in range(2000)
         }
@@ -73,7 +72,7 @@ class TestEnrichSizeGuard:
                     schema_={
                         "type": "object",
                         "properties": {
-                            "name": {"type": "string", "observed": ["Alice"]},
+                            "name": {"type": "string", "examples": ["Alice"]},
                         },
                     },
                 ),
@@ -115,7 +114,7 @@ class TestApplyEnrichment:
                 path_schema={
                     "type": "object",
                     "properties": {
-                        "user_id": {"type": "string", "observed": ["123"]},
+                        "user_id": {"type": "string", "examples": ["123"]},
                     },
                     "required": ["user_id"],
                 }
@@ -146,7 +145,7 @@ class TestApplyEnrichment:
                 query_schema={
                     "type": "object",
                     "properties": {
-                        "q": {"type": "string", "observed": ["hello"]},
+                        "q": {"type": "string", "examples": ["hello"]},
                     },
                     "required": ["q"],
                 }
@@ -177,7 +176,7 @@ class TestApplyEnrichment:
                 body_schema={
                     "type": "object",
                     "properties": {
-                        "period": {"type": "string", "observed": ["2024-01"]},
+                        "period": {"type": "string", "examples": ["2024-01"]},
                     },
                     "required": ["period"],
                 }
@@ -211,7 +210,7 @@ class TestApplyEnrichment:
                         "address": {
                             "type": "object",
                             "properties": {
-                                "city": {"type": "string", "observed": ["Paris"]},
+                                "city": {"type": "string", "examples": ["Paris"]},
                             },
                         },
                     },
@@ -280,7 +279,7 @@ class TestApplyEnrichment:
                     schema_={
                         "type": "object",
                         "properties": {
-                            "name": {"type": "string", "observed": ["Alice"]},
+                            "name": {"type": "string", "examples": ["Alice"]},
                         },
                     },
                 ),
@@ -319,8 +318,8 @@ class TestApplyEnrichment:
                                 "items": {
                                     "type": "object",
                                     "properties": {
-                                        "type": {"type": "string", "observed": ["PARKING_COST"]},
-                                        "value": {"type": "number", "observed": [250]},
+                                        "type": {"type": "string", "examples": ["PARKING_COST"]},
+                                        "value": {"type": "number", "examples": [250]},
                                     },
                                 },
                             },
@@ -353,272 +352,6 @@ class TestApplyEnrichment:
         assert items_props["value"]["description"] == "Numeric value in cents"
 
 
-class TestStripNonLeafObserved:
-    def test_strips_root_object_observed(self):
-        schema: dict[str, Any] = {
-            "type": "object",
-            "properties": {
-                "address": {
-                    "type": "object",
-                    "observed": [{"city": "Paris"}],
-                    "properties": {
-                        "city": {"type": "string", "observed": ["Paris"]},
-                    },
-                },
-            },
-        }
-        result = _strip_non_leaf_observed(schema)
-        assert "observed" not in result["properties"]["address"]
-        assert result["properties"]["address"]["properties"]["city"]["observed"] == [
-            "Paris"
-        ]
-
-    def test_strips_deeply_nested_object_observed(self):
-        schema: dict[str, Any] = {
-            "type": "object",
-            "properties": {
-                "outer": {
-                    "type": "object",
-                    "observed": [{"inner": {"val": 1}}],
-                    "properties": {
-                        "inner": {
-                            "type": "object",
-                            "observed": [{"val": 1}],
-                            "properties": {
-                                "val": {"type": "integer", "observed": [1]},
-                            },
-                        },
-                    },
-                },
-            },
-        }
-        result = _strip_non_leaf_observed(schema)
-        assert "observed" not in result["properties"]["outer"]
-        assert "observed" not in result["properties"]["outer"]["properties"]["inner"]
-        assert result["properties"]["outer"]["properties"]["inner"]["properties"][
-            "val"
-        ]["observed"] == [1]
-
-    def test_strips_array_observed(self):
-        schema: dict[str, Any] = {
-            "type": "object",
-            "properties": {
-                "tags": {
-                    "type": "array",
-                    "observed": [["a", "b"]],
-                    "items": {"type": "string", "observed": ["a", "b"]},
-                },
-            },
-        }
-        result = _strip_non_leaf_observed(schema)
-        assert "observed" not in result["properties"]["tags"]
-        assert result["properties"]["tags"]["items"]["observed"] == ["a", "b"]
-
-    def test_strips_array_of_objects_nested_observed(self):
-        schema: dict[str, Any] = {
-            "type": "object",
-            "properties": {
-                "items": {
-                    "type": "array",
-                    "observed": [[{"meta": {"id": 1}}]],
-                    "items": {
-                        "type": "object",
-                        "observed": [{"meta": {"id": 1}}],
-                        "properties": {
-                            "meta": {
-                                "type": "object",
-                                "observed": [{"id": 1}],
-                                "properties": {
-                                    "id": {"type": "integer", "observed": [1]},
-                                },
-                            },
-                        },
-                    },
-                },
-            },
-        }
-        result = _strip_non_leaf_observed(schema)
-        arr = result["properties"]["items"]
-        assert "observed" not in arr
-        items_obj = arr["items"]
-        assert "observed" not in items_obj
-        assert "observed" not in items_obj["properties"]["meta"]
-        assert items_obj["properties"]["meta"]["properties"]["id"]["observed"] == [1]
-
-    def test_strips_deeply_nested_array_object_observed(self):
-        schema: dict[str, Any] = {
-            "type": "object",
-            "properties": {
-                "groups": {
-                    "type": "array",
-                    "observed": [[{"members": [{"name": "A"}]}]],
-                    "items": {
-                        "type": "object",
-                        "observed": [{"members": [{"name": "A"}]}],
-                        "properties": {
-                            "members": {
-                                "type": "array",
-                                "observed": [[{"name": "A"}]],
-                                "items": {
-                                    "type": "object",
-                                    "observed": [{"name": "A"}],
-                                    "properties": {
-                                        "name": {
-                                            "type": "string",
-                                            "observed": ["A"],
-                                        },
-                                    },
-                                },
-                            },
-                        },
-                    },
-                },
-            },
-        }
-        result = _strip_non_leaf_observed(schema)
-        groups = result["properties"]["groups"]
-        assert "observed" not in groups
-        group_items = groups["items"]
-        assert "observed" not in group_items
-        members = group_items["properties"]["members"]
-        assert "observed" not in members
-        member_items = members["items"]
-        assert "observed" not in member_items
-        assert member_items["properties"]["name"]["observed"] == ["A"]
-
-    def test_keeps_scalar_observed(self):
-        schema: dict[str, Any] = {
-            "type": "object",
-            "properties": {
-                "name": {"type": "string", "observed": ["Alice"]},
-                "age": {"type": "integer", "observed": [30]},
-            },
-        }
-        result = _strip_non_leaf_observed(schema)
-        assert result["properties"]["name"]["observed"] == ["Alice"]
-        assert result["properties"]["age"]["observed"] == [30]
-
-
-class TestBuildEndpointSummaryObserved:
-    """Verify that _build_endpoint_summary strips intermediate observed from LLM context."""
-
-    def test_body_schema_intermediate_observed_stripped(self):
-        ep = EndpointSpec(
-            id="test",
-            path="/test",
-            method="POST",
-            request=RequestSpec(
-                body_schema={
-                    "type": "object",
-                    "properties": {
-                        "address": {
-                            "type": "object",
-                            "observed": [{"city": "Paris"}],
-                            "properties": {
-                                "city": {"type": "string", "observed": ["Paris"]},
-                            },
-                        },
-                    },
-                }
-            ),
-        )
-        summary = _build_endpoint_summary(ep, [], [])
-        body = summary["request_body"]
-        addr = body["properties"]["address"]
-        # Intermediate object observed stripped for LLM
-        assert "observed" not in addr
-        # Leaf scalar observed kept for LLM
-        assert addr["properties"]["city"]["observed"] == ["Paris"]
-
-    def test_response_schema_intermediate_observed_stripped(self):
-        ep = EndpointSpec(
-            id="test",
-            path="/test",
-            method="GET",
-            responses=[
-                ResponseSpec(
-                    status=200,
-                    schema_={
-                        "type": "object",
-                        "properties": {
-                            "locale": {
-                                "type": "object",
-                                "observed": [{"fr_FR": "Gilliotte"}],
-                                "properties": {
-                                    "fr_FR": {
-                                        "type": "string",
-                                        "observed": ["Gilliotte"],
-                                    },
-                                },
-                            },
-                        },
-                    },
-                ),
-            ],
-        )
-        summary = _build_endpoint_summary(ep, [], [])
-        resp_schema = summary["responses"][0]["schema"]
-        locale = resp_schema["properties"]["locale"]
-        # Intermediate object observed stripped for LLM
-        assert "observed" not in locale
-        # Leaf scalar observed kept for LLM
-        assert locale["properties"]["fr_FR"]["observed"] == ["Gilliotte"]
-
-
-class TestStripNonLeafObservedAdditionalProperties:
-    def test_object_additional_properties_observed_stripped(self):
-        schema: dict[str, Any] = {
-            "type": "object",
-            "additionalProperties": {
-                "type": "object",
-                "observed": [{"total": 100}],
-                "properties": {
-                    "total": {"type": "integer", "observed": [100]},
-                },
-            },
-            "x-key-pattern": "year",
-        }
-        result = _strip_non_leaf_observed(schema)
-        ap = result["additionalProperties"]
-        assert "observed" not in ap
-        assert ap["properties"]["total"]["observed"] == [100]
-
-    def test_array_additional_properties_recurses_into_items(self):
-        schema: dict[str, Any] = {
-            "type": "object",
-            "additionalProperties": {
-                "type": "array",
-                "observed": [[{"amount": 100}]],
-                "items": {
-                    "type": "object",
-                    "observed": [{"amount": 100}],
-                    "properties": {
-                        "amount": {"type": "integer", "observed": [100]},
-                    },
-                },
-            },
-            "x-key-pattern": "date",
-        }
-        result = _strip_non_leaf_observed(schema)
-        ap = result["additionalProperties"]
-        assert "observed" not in ap
-        items_obj = ap["items"]
-        assert "observed" not in items_obj
-        assert items_obj["properties"]["amount"]["observed"] == [100]
-
-    def test_scalar_additional_properties_untouched(self):
-        schema: dict[str, Any] = {
-            "type": "object",
-            "additionalProperties": {
-                "type": "integer",
-                "observed": [100, 200],
-            },
-            "x-key-pattern": "date",
-        }
-        result = _strip_non_leaf_observed(schema)
-        assert result["additionalProperties"]["observed"] == [100, 200]
-
-
 class TestApplyDescriptionsAdditionalProperties:
     def test_descriptions_applied_through_additional_properties(self):
         endpoint = EndpointSpec(
@@ -636,7 +369,7 @@ class TestApplyDescriptionsAdditionalProperties:
                                 "additionalProperties": {
                                     "type": "object",
                                     "properties": {
-                                        "total": {"type": "integer", "observed": [100]},
+                                        "total": {"type": "integer", "examples": [100]},
                                     },
                                 },
                                 "x-key-pattern": "date",
@@ -670,7 +403,7 @@ class TestResponseSchemaTrimming:
         big_props = {
             f"field_{i}": {
                 "type": "string",
-                "observed": [f"value_{i}_{'x' * 100}"],
+                "examples": [f"value_{i}_{'x' * 100}"],
             }
             for i in range(200)
         }
@@ -703,7 +436,7 @@ class TestResponseSchemaTrimming:
                     schema_={
                         "type": "object",
                         "properties": {
-                            "name": {"type": "string", "observed": ["Alice"]},
+                            "name": {"type": "string", "examples": ["Alice"]},
                         },
                     },
                 ),
@@ -712,6 +445,6 @@ class TestResponseSchemaTrimming:
         summary = _build_endpoint_summary(ep, [], [])
         assert len(summary["responses"]) == 1
         assert "schema" in summary["responses"][0]
-        assert summary["responses"][0]["schema"]["properties"]["name"]["observed"] == [
+        assert summary["responses"][0]["schema"]["properties"]["name"]["examples"] == [
             "Alice"
         ]

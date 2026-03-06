@@ -141,7 +141,7 @@ def _make_infer_request_schema_tool() -> dict[str, Any]:
         "description": (
             "Merge request bodies from the given trace IDs into an annotated JSON Schema. "
             "Shows which fields vary (parameters) vs stay the same (fixed values) "
-            "across traces, with up to 5 observed values per field."
+            "across traces, with up to 5 example values per field."
         ),
         "input_schema": {
             "type": "object",

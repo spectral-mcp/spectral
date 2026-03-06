@@ -89,8 +89,8 @@ class TestBuildEndpointMechanical:
         assert endpoint.request.path_schema is not None
         props = endpoint.request.path_schema["properties"]
         assert "user_id" in props
-        assert 123 in props["user_id"]["observed"]
-        assert 456 in props["user_id"]["observed"]
+        assert 123 in props["user_id"]["examples"]
+        assert 456 in props["user_id"]["examples"]
 
     @pytest.mark.asyncio
     async def test_endpoint_with_query_params(self):

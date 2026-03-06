@@ -29,31 +29,31 @@ class TestInferSchema:
         assert schema["properties"]["age"]["type"] == "integer"
         assert "required" not in schema
 
-    def test_observed_values(self):
+    def test_example_values(self):
         samples = [
             {"status": "active", "count": 1},
             {"status": "inactive", "count": 5},
             {"status": "active", "count": 10},
         ]
         schema = infer_schema(samples)
-        assert "observed" in schema["properties"]["status"]
-        assert "active" in schema["properties"]["status"]["observed"]
-        assert "inactive" in schema["properties"]["status"]["observed"]
-        assert 1 in schema["properties"]["count"]["observed"]
+        assert "examples" in schema["properties"]["status"]
+        assert "active" in schema["properties"]["status"]["examples"]
+        assert "inactive" in schema["properties"]["status"]["examples"]
+        assert 1 in schema["properties"]["count"]["examples"]
 
-    def test_observed_values_deduplication(self):
+    def test_example_values_deduplication(self):
         samples = [
             {"x": "a"},
             {"x": "a"},
             {"x": "b"},
         ]
         schema = infer_schema(samples)
-        assert schema["properties"]["x"]["observed"] == ["a", "b"]
+        assert schema["properties"]["x"]["examples"] == ["a", "b"]
 
-    def test_observed_values_max_5(self):
+    def test_example_values_max_5(self):
         samples = [{"x": i} for i in range(20)]
         schema = infer_schema(samples)
-        assert len(schema["properties"]["x"]["observed"]) == 5
+        assert len(schema["properties"]["x"]["examples"]) == 5
 
     def test_optional_fields(self):
         samples = [
@@ -90,9 +90,9 @@ class TestInferSchema:
         assert addr["properties"]["city"]["type"] == "string"
         assert addr["properties"]["zip"]["type"] == "string"
         assert "required" not in addr
-        assert "Paris" in addr["properties"]["city"]["observed"]
-        # Intermediate objects carry observed (used for OpenAPI examples in assembly)
-        assert "observed" in addr
+        assert "Paris" in addr["properties"]["city"]["examples"]
+        # Object nodes don't carry examples — only leaf scalars do
+        assert "examples" not in addr
 
     def test_array_of_objects(self):
         samples = [
@@ -117,8 +117,8 @@ class TestInferSchema:
         assert tags["type"] == "array"
         assert tags["items"]["type"] == "string"
 
-    def test_array_observed_on_items_not_property(self):
-        """Observed values for arrays should be on items (flattened), not on the array property."""
+    def test_array_examples_on_items_not_property(self):
+        """Example values for arrays should be on items (flattened), not on the array property."""
         samples: list[dict[str, Any]] = [
             {"tags": ["EXT_BUCKET", "EXT_TIME"]},
             {"tags": []},
@@ -127,11 +127,11 @@ class TestInferSchema:
         schema = infer_schema(samples)
         tags = schema["properties"]["tags"]
         assert tags["type"] == "array"
-        # No observed on the array property itself
-        assert "observed" not in tags
-        # Observed is on items, with flattened distinct elements
-        assert "observed" in tags["items"]
-        assert set(tags["items"]["observed"]) == {"EXT_BUCKET", "EXT_TIME"}
+        # No examples on the array property itself
+        assert "examples" not in tags
+        # Examples is on items, with flattened distinct elements
+        assert "examples" in tags["items"]
+        assert set(tags["items"]["examples"]) == {"EXT_BUCKET", "EXT_TIME"}
 
     def test_deeply_nested(self):
         samples = [
@@ -141,11 +141,10 @@ class TestInferSchema:
         inner = schema["properties"]["outer"]["properties"]["inner"]
         assert inner["type"] == "object"
         assert inner["properties"]["value"]["type"] == "integer"
-        assert 42 in inner["properties"]["value"]["observed"]
-        # Intermediate objects carry observed (used for OpenAPI examples in assembly)
-        outer = schema["properties"]["outer"]
-        assert "observed" in outer
-        assert "observed" in inner
+        assert 42 in inner["properties"]["value"]["examples"]
+        # Object nodes don't carry examples — only leaf scalars do
+        assert "examples" not in schema["properties"]["outer"]
+        assert "examples" not in inner
 
     def test_null_then_object_infers_object_type(self):
         samples = [
@@ -158,8 +157,8 @@ class TestInferSchema:
         assert "properties" in prop
         assert prop["properties"]["lon"]["type"] == "number"
         assert prop["properties"]["lat"]["type"] == "number"
-        # Intermediate objects carry observed (used for OpenAPI examples in assembly)
-        assert "observed" in prop
+        # Object nodes don't carry examples — only leaf scalars do
+        assert "examples" not in prop
 
     def test_null_then_string_infers_string_type(self):
         samples = [
@@ -269,8 +268,8 @@ class TestInferPathSchema:
         assert schema["type"] == "object"
         assert "user_id" in schema["properties"]
         assert schema["required"] == ["user_id"]
-        assert 123 in schema["properties"]["user_id"]["observed"]
-        assert 456 in schema["properties"]["user_id"]["observed"]
+        assert 123 in schema["properties"]["user_id"]["examples"]
+        assert 456 in schema["properties"]["user_id"]["examples"]
 
     def test_uuid_format_detection(self):
         traces = [
@@ -349,7 +348,7 @@ class TestInferQuerySchema:
         assert schema["properties"]["id"]["type"] == "string"
         assert schema["properties"]["id"]["format"] == "uuid"
         assert "required" not in schema
-        assert len(schema["properties"]["id"]["observed"]) == 2
+        assert len(schema["properties"]["id"]["examples"]) == 2
 
     def test_integer_type(self):
         traces = [
@@ -406,8 +405,8 @@ class TestQueryParamExtraction:
         assert schema is not None
         assert "q" in schema["properties"]
         assert "page" in schema["properties"]
-        assert "hello" in schema["properties"]["q"]["observed"]
-        assert "world" in schema["properties"]["q"]["observed"]
+        assert "hello" in schema["properties"]["q"]["examples"]
+        assert "world" in schema["properties"]["q"]["examples"]
 
 
 class TestDynamicKeyDetection:
@@ -684,8 +683,8 @@ class TestResolveMapCandidates:
         schema: dict[str, Any] = {
             "type": "object",
             "properties": {
-                "key-0": {"type": "object", "properties": {"id": {"type": "integer", "observed": [0]}, "name": {"type": "string", "observed": ["item-0"]}}, "observed": [{"id": 0, "name": "item-0"}]},
-                "key-1": {"type": "object", "properties": {"id": {"type": "integer", "observed": [1]}, "name": {"type": "string", "observed": ["item-1"]}}, "observed": [{"id": 1, "name": "item-1"}]},
+                "key-0": {"type": "object", "properties": {"id": {"type": "integer", "examples": [0]}, "name": {"type": "string", "examples": ["item-0"]}}, "examples": [{"id": 0, "name": "item-0"}]},
+                "key-1": {"type": "object", "properties": {"id": {"type": "integer", "examples": [1]}, "name": {"type": "string", "examples": ["item-1"]}}, "examples": [{"id": 1, "name": "item-1"}]},
             },
             "x-map-candidate": {
                 "keys": ["key-0", "key-1", "key-2", "key-3", "key-4"],
@@ -711,8 +710,8 @@ class TestResolveMapCandidates:
         schema: dict[str, Any] = {
             "type": "object",
             "properties": {
-                "config": {"type": "object", "properties": {"a": {"type": "string"}}, "observed": [{"a": "x"}]},
-                "status": {"type": "object", "properties": {"a": {"type": "string"}}, "observed": [{"a": "y"}]},
+                "config": {"type": "object", "properties": {"a": {"type": "string"}}, "examples": [{"a": "x"}]},
+                "status": {"type": "object", "properties": {"a": {"type": "string"}}, "examples": [{"a": "y"}]},
             },
             "x-map-candidate": {
                 "keys": ["config", "status", "meta", "info", "extra"],
@@ -752,8 +751,8 @@ class TestResolveMapCandidates:
         inner: dict[str, Any] = {
             "type": "object",
             "properties": {
-                "k0": {"type": "object", "properties": {"id": {"type": "integer", "observed": [0]}}, "observed": [{"id": 0}]},
-                "k1": {"type": "object", "properties": {"id": {"type": "integer", "observed": [1]}}, "observed": [{"id": 1}]},
+                "k0": {"type": "object", "properties": {"id": {"type": "integer", "examples": [0]}}, "examples": [{"id": 0}]},
+                "k1": {"type": "object", "properties": {"id": {"type": "integer", "examples": [1]}}, "examples": [{"id": 1}]},
             },
             "x-map-candidate": {
                 "keys": ["k0", "k1", "k2", "k3", "k4"],

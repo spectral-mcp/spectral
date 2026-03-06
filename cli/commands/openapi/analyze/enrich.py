@@ -35,7 +35,7 @@ async def enrich_endpoints(ctx: EnrichmentContext) -> list[EndpointSpec]:
             return
         prompt = f"""You are analyzing a single API endpoint discovered from "{ctx.app_name}" ({ctx.base_url}).
 
-Below is the endpoint's mechanical data as JSON Schema. Nested properties carry an "observed" array with sample values seen in real traffic — use these to understand business meaning.
+Below is the endpoint's mechanical data as JSON Schema. Nested properties carry an "examples" array with sample values seen in real traffic — use these to understand business meaning.
 
 {summary_json}
 
@@ -73,30 +73,6 @@ Respond in compact JSON (no indentation)."""
     return ctx.endpoints
 
 
-def _strip_non_leaf_observed(schema: dict[str, Any]) -> dict[str, Any]:
-    """Return a copy of *schema* with ``observed`` removed from non-leaf nodes."""
-    if schema.get("type") not in ("object", "array"):
-        return schema
-
-    out = {k: v for k, v in schema.items() if k != "observed"}
-
-    props = out.get("properties")
-    if _is_json_dict(props):
-        out["properties"] = {
-            name: _strip_non_leaf_observed(prop) if _is_json_dict(prop) else prop
-            for name, prop in props.items()
-        }
-
-    ap = out.get("additionalProperties")
-    if _is_json_dict(ap):
-        out["additionalProperties"] = _strip_non_leaf_observed(ap)
-
-    items = out.get("items")
-    if _is_json_dict(items):
-        out["items"] = _strip_non_leaf_observed(items)
-
-    return out
-
 
 def _build_endpoint_summary(
     ep: EndpointSpec,
@@ -128,11 +104,11 @@ def _build_endpoint_summary(
         summary["ui_triggers"] = ui_triggers[:3]
 
     if ep.request.path_schema:
-        summary["path_parameters"] = _strip_non_leaf_observed(ep.request.path_schema)
+        summary["path_parameters"] = ep.request.path_schema
     if ep.request.query_schema:
-        summary["query_parameters"] = _strip_non_leaf_observed(ep.request.query_schema)
+        summary["query_parameters"] = ep.request.query_schema
     if ep.request.body_schema:
-        summary["request_body"] = _strip_non_leaf_observed(ep.request.body_schema)
+        summary["request_body"] = ep.request.body_schema
 
     if ep.responses:
         responses_list: list[dict[str, Any]] = []
@@ -141,10 +117,9 @@ def _build_endpoint_summary(
             if resp.content_type:
                 resp_info["content_type"] = resp.content_type
             if resp.schema_:
-                stripped = _strip_non_leaf_observed(resp.schema_)
-                serialized = minified(stripped)
+                serialized = minified(resp.schema_)
                 if len(serialized) <= _MAX_RESPONSE_SCHEMA_CHARS:
-                    resp_info["schema"] = stripped
+                    resp_info["schema"] = resp.schema_
                 else:
                     console.print(
                         f"  [yellow]Trimming response {resp.status} schema from "

@@ -268,12 +268,7 @@ def _merge_property_schemas(schemas: list[dict[str, Any]]) -> dict[str, Any]:
         merged_props: dict[str, Any] = {}
         for key, prop_list in merged_keys.items():
             merged_props[key] = prop_list[0]
-        result: dict[str, Any] = {"type": "object", "properties": merged_props}
-        for s in schemas:
-            if "observed" in s:
-                result["observed"] = s["observed"]
-                break
-        return result
+        return {"type": "object", "properties": merged_props}
     return schemas[0] if schemas else {}
 
 

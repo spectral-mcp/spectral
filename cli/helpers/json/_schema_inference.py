@@ -55,8 +55,8 @@ def _detect_format(values: list[Any]) -> str | None:
     return None
 
 
-def _collect_observed(values: list[Any], max_count: int = 5) -> list[Any]:
-    """Collect up to *max_count* distinct observed values."""
+def _collect_examples(values: list[Any], max_count: int = 5) -> list[Any]:
+    """Collect up to *max_count* distinct example values."""
     seen: list[Any] = []
     seen_set: set[str | int | float | bool | None] = set()
     for v in values:
@@ -77,24 +77,24 @@ def _collect_observed(values: list[Any], max_count: int = 5) -> list[Any]:
 
 
 def infer_schema(samples: list[dict[str, Any]]) -> dict[str, Any]:
-    """Infer a JSON schema from multiple object samples, annotated with observed values.
+    """Infer a JSON schema from multiple object samples, annotated with example values.
 
     Recursively explores nested objects and arrays of objects so that the
     resulting schema fully describes the structure at every level.
 
-    Each property carries its type, optional format, and an "observed" list of up
+    Each property carries its type, optional format, and an "examples" list of up
     to 5 distinct values seen across samples.
 
     Returns a dict like:
     {
         "type": "object",
         "properties": {
-            "status": {"type": "string", "observed": ["active", "inactive"]},
-            "count": {"type": "integer", "observed": [1, 5, 10]},
+            "status": {"type": "string", "examples": ["active", "inactive"]},
+            "count": {"type": "integer", "examples": [1, 5, 10]},
             "address": {
                 "type": "object",
                 "properties": {
-                    "city": {"type": "string", "observed": ["Paris"]}
+                    "city": {"type": "string", "examples": ["Paris"]}
                 }
             }
         }
@@ -141,13 +141,16 @@ def _infer_property(values: list[Any]) -> dict[str, Any]:
                     prop[k] = v
 
     if prop_type == "array":
-        # Infer items schema from array contents — observed goes on items, not here
+        # Infer items schema from array contents — examples goes on items, not here
         items_schema = _infer_array_items(non_null)
         if items_schema:
             prop["items"] = items_schema
         return prop
 
-    prop["observed"] = _collect_observed(values)
+    # Only leaf types (string, integer, number, boolean) carry example values.
+    # Objects already expose their structure via properties.
+    if prop_type != "object":
+        prop["examples"] = _collect_examples(values)
     return prop
 
 
@@ -178,5 +181,5 @@ def _infer_array_items(array_values: list[Any]) -> dict[str, Any] | None:
         fmt = _detect_format(all_elements)
         if fmt:
             schema["format"] = fmt
-    schema["observed"] = _collect_observed(all_elements)
+    schema["examples"] = _collect_examples(all_elements)
     return schema

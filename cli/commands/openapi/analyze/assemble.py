@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, cast
+from typing import Any
 
 from cli.commands.capture.types import Trace
 from cli.commands.openapi.analyze.types import (
@@ -54,11 +54,10 @@ def _params_from_schema(
     required_set = set(schema.get("required", []))
     params: list[dict[str, Any]] = []
     for name, prop in schema.get("properties", {}).items():
-        prop_clean = _observed_to_examples(prop)
         p: dict[str, Any] = {
             "name": name,
             "in": location,
-            "schema": prop_clean,
+            "schema": prop,
         }
         if name in required_set:
             p["required"] = True
@@ -94,7 +93,7 @@ def _build_operation(
             "required": True,
             "content": {
                 content_type: {
-                    "schema": _observed_to_examples(endpoint.request.body_schema)
+                    "schema": endpoint.request.body_schema
                 }
             },
         }
@@ -106,8 +105,7 @@ def _build_operation(
         }
         if resp.schema_:
             ct = resp.content_type or "application/json"
-            schema_value = _observed_to_examples(resp.schema_)
-            media_type: dict[str, Any] = {"schema": schema_value}
+            media_type: dict[str, Any] = {"schema": resp.schema_}
             if resp.example_body is not None:
                 media_type["example"] = resp.example_body
             resp_obj["content"] = {ct: media_type}
@@ -120,25 +118,6 @@ def _build_operation(
         operation["x-rate-limit"] = endpoint.rate_limit
 
     return operation
-
-
-def _observed_to_examples(schema: dict[str, Any]) -> dict[str, Any]:
-    """Convert ``observed`` lists to OpenAPI ``examples`` values recursively."""
-    out = dict(schema)
-    observed = out.pop("observed", None)
-    if observed:
-        out["examples"] = observed
-    if "properties" in out:
-        out["properties"] = {
-            k: _observed_to_examples(v) for k, v in out["properties"].items()
-        }
-    if "items" in out and isinstance(out["items"], dict):
-        out["items"] = _observed_to_examples(cast(dict[str, Any], out["items"]))
-    if "additionalProperties" in out and isinstance(out["additionalProperties"], dict):
-        out["additionalProperties"] = _observed_to_examples(
-            cast(dict[str, Any], out["additionalProperties"])
-        )
-    return out
 
 
 def _extract_tag(path: str) -> str:

@@ -66,10 +66,10 @@ class TestInferRequestSchema:
         schema = json.loads(result)
         assert schema["type"] == "object"
         props = schema["properties"]
-        # currency is always "EUR" → observed should reflect that
-        assert "EUR" in props["currency"]["observed"]
+        # currency is always "EUR" → examples should reflect that
+        assert "EUR" in props["currency"]["examples"]
         # origin varies
-        assert len(props["origin"]["observed"]) == 2
+        assert len(props["origin"]["examples"]) == 2
 
     def test_no_bodies(self) -> None:
         traces = _sample_traces()
