@@ -5,6 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 import sys
 
+from cli.helpers.storage import store_root
+
 HOST_NAME = "com.spectral.capture_host"
 MANIFEST_FILENAME = f"{HOST_NAME}.json"
 
@@ -67,8 +69,6 @@ def generate_manifest(extension_id: str, host_path: str) -> dict[str, object]:
 
 def wrapper_script_path() -> Path:
     """Return the path for the wrapper shell script."""
-    from cli.helpers.storage import store_root
-
     return store_root() / "native_host.sh"
 
 

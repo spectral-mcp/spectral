@@ -2,9 +2,14 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timezone
+import json
 from pathlib import Path
+import re
 import signal
+import threading
+import time
 from typing import TYPE_CHECKING, Any, cast
 import uuid
 
@@ -14,20 +19,24 @@ if TYPE_CHECKING:
     from mitmproxy.http import Headers as mitmproxy_Headers, HTTPFlow
     from mitmproxy.tls import ClientHelloData
 
+from cli.commands.capture.graphql_utils import inject_typename
 from cli.commands.capture.types import CaptureBundle, Trace, WsConnection, WsMessage
 from cli.formats.capture_bundle import (
     AppInfo,
     CaptureManifest,
     CaptureStats,
     Header,
+    Initiator,
     RequestMeta,
     ResponseMeta,
     Timeline,
     TimelineEvent,
     TimingInfo,
+    TraceMeta,
     WsConnectionMeta,
     WsMessageMeta,
 )
+from cli.helpers.storage import store_capture
 
 
 def _ensure_mitmproxy() -> None:
@@ -73,8 +82,6 @@ def flow_to_trace(flow: HTTPFlow, trace_id: str) -> Trace:
         total_ms = (resp.timestamp_end - req.timestamp_start) * 1000
 
     timestamp_ms = int(req.timestamp_start * 1000)
-
-    from cli.formats.capture_bundle import Initiator, TraceMeta
 
     meta = TraceMeta(
         id=trace_id,
@@ -302,9 +309,6 @@ def _inject_typename_into_flow(flow: HTTPFlow) -> None:
     Detects GraphQL requests by URL pattern or body shape, then modifies
     the request body in-place to add __typename to all selection sets.
     """
-    import json
-    import re
-
     req = flow.request
     if req.method.upper() != "POST":
         return
@@ -342,10 +346,6 @@ def _inject_typename_into_flow(flow: HTTPFlow) -> None:
 
 def _inject_typename_in_body(body: dict[str, object], is_gql_url: bool) -> bool:
     """Inject __typename into a single GraphQL body dict. Returns True if modified."""
-    import re
-
-    from cli.commands.capture.graphql_utils import inject_typename
-
     query = body.get("query")
     if not isinstance(query, str):
         return False
@@ -369,8 +369,6 @@ def domain_to_regex(pattern: str) -> str:
     - Wildcard prefix: ``*.example.com`` → ``.*\\.example\\.com``
     - Already valid regex is passed through unchanged.
     """
-    import re
-
     # If it already compiles as valid regex, use it as-is
     try:
         re.compile(pattern)
@@ -396,10 +394,6 @@ def _run_mitmproxy(
 
     Returns (start_time, end_time) as epoch seconds.
     """
-    import asyncio
-    import threading
-    import time
-
     from mitmproxy.options import Options
     from mitmproxy.tools.dump import DumpMaster
 
@@ -452,8 +446,6 @@ def run_proxy_to_storage(
     Returns:
         (CaptureStats, capture_dir) on success.
     """
-    from cli.helpers.storage import store_capture
-
     _ensure_mitmproxy()
 
     addon = CaptureAddon()

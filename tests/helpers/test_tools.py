@@ -9,13 +9,10 @@ from unittest.mock import MagicMock
 import pytest
 
 import cli.helpers.llm as llm
-from cli.helpers.llm_tools import (
-    INVESTIGATION_TOOLS,
-    TOOL_EXECUTORS,
-    execute_decode_base64,
-    execute_decode_jwt,
-    execute_decode_url,
-)
+from cli.helpers.llm.tools import make_tools
+from cli.helpers.llm.tools._decode_base64 import execute as execute_decode_base64
+from cli.helpers.llm.tools._decode_jwt import execute as execute_decode_jwt
+from cli.helpers.llm.tools._decode_url import execute as execute_decode_url
 
 # --- Executor unit tests (sync, no mocks) ---
 
@@ -137,11 +134,13 @@ class TestCallWithTools:
         client.messages.create = mock_create
         llm.init(client=client)
 
+        tools, executors = make_tools(["decode_base64", "decode_url", "decode_jwt"])
+
         result = await llm._call_with_tools(
             "model",
             [{"role": "user", "content": "hi"}],
-            INVESTIGATION_TOOLS,
-            TOOL_EXECUTORS,
+            tools,
+            executors,
         )
         assert result == '{"endpoints": []}'
         assert call_count[0] == 1
@@ -167,11 +166,13 @@ class TestCallWithTools:
         client.messages.create = mock_create
         llm.init(client=client)
 
+        tools, executors = make_tools(["decode_base64", "decode_url", "decode_jwt"])
+
         result = await llm._call_with_tools(
             "model",
             [{"role": "user", "content": "analyze"}],
-            INVESTIGATION_TOOLS,
-            TOOL_EXECUTORS,
+            tools,
+            executors,
         )
         assert "/api/data/{param}" in result
         assert call_count[0] == 2
@@ -201,11 +202,13 @@ class TestCallWithTools:
         client.messages.create = mock_create
         llm.init(client=client)
 
+        tools, executors = make_tools(["decode_base64", "decode_url", "decode_jwt"])
+
         result = await llm._call_with_tools(
             "model",
             [{"role": "user", "content": "go"}],
-            INVESTIGATION_TOOLS,
-            TOOL_EXECUTORS,
+            tools,
+            executors,
         )
         assert result == "[]"
 
@@ -221,12 +224,14 @@ class TestCallWithTools:
         client.messages.create = mock_create
         llm.init(client=client)
 
+        tools, executors = make_tools(["decode_base64", "decode_url", "decode_jwt"])
+
         with pytest.raises(ValueError, match="exceeded 3 iterations"):
             await llm._call_with_tools(
                 "model",
                 [{"role": "user", "content": "go"}],
-                INVESTIGATION_TOOLS,
-                TOOL_EXECUTORS,
+                tools,
+                executors,
                 max_iterations=3,
             )
 
@@ -252,10 +257,12 @@ class TestCallWithTools:
         client.messages.create = mock_create
         llm.init(client=client)
 
+        tools, executors = make_tools(["decode_base64", "decode_url", "decode_jwt"])
+
         result = await llm._call_with_tools(
             "model",
             [{"role": "user", "content": "go"}],
-            INVESTIGATION_TOOLS,
-            TOOL_EXECUTORS,
+            tools,
+            executors,
         )
         assert result == "done"

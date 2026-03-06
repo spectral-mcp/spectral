@@ -9,7 +9,6 @@ from cli.helpers.detect_base_url import MethodUrlPair
 from cli.helpers.http import compact_url
 from cli.helpers.json import extract_json
 import cli.helpers.llm as llm
-from cli.helpers.llm_tools import INVESTIGATION_TOOLS, TOOL_EXECUTORS
 
 
 async def group_endpoints(pairs: list[MethodUrlPair]) -> list[EndpointGroup]:
@@ -47,12 +46,11 @@ Observed requests:
 Your response MUST be a raw JSON array and nothing else — no explanation, no markdown fences, no text before or after. Example format:
 [{{"method": "GET", "pattern": "/api/users/{{user_id}}/orders", "urls": ["https://example.com/api/users/123/orders", "https://example.com/api/users/456/orders"]}}]"""
 
-    text = await llm.ask(
-        prompt,
+    conv = llm.Conversation(
         label="analyze_endpoints",
-        tools=INVESTIGATION_TOOLS,
-        executors=TOOL_EXECUTORS,
+        tool_names=["decode_base64", "decode_url", "decode_jwt"],
     )
+    text = await conv.ask_text(prompt)
 
     result = extract_json(text)
     if not isinstance(result, list):

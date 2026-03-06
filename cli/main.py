@@ -11,12 +11,15 @@ from cli.commands.extension.cmd import extension
 from cli.commands.graphql.cmd import graphql_cmd
 from cli.commands.mcp.cmd import mcp
 from cli.commands.openapi.cmd import openapi
+import cli.helpers.llm as llm
 
 
 @click.group()
 @click.version_option(version="0.1.0", prog_name="spectral")
-def cli() -> None:
+@click.pass_context
+def cli(ctx: click.Context) -> None:
     """Automatically discover and document web application APIs."""
+    ctx.call_on_close(llm.print_usage_summary)
 
 
 cli.add_command(openapi)

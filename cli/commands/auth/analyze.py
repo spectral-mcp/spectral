@@ -7,16 +7,10 @@ Raises ``NoAuthDetected`` if the LLM concludes there is no auth.
 
 from __future__ import annotations
 
-from collections.abc import Callable
-from typing import Any
+import re
 
-from cli.commands.capture.types import Trace
-from cli.commands.mcp.investigation import (
-    execute_inspect_trace,
-    make_inspect_trace_tool,
-)
+from cli.commands.capture.types import CaptureBundle, Trace
 import cli.helpers.llm as llm
-from cli.helpers.llm_tools import INVESTIGATION_TOOLS, TOOL_EXECUTORS
 
 
 class NoAuthDetected(Exception):
@@ -76,7 +70,7 @@ Respond with ONLY the Python code inside a ```python code block. Or respond with
 
 
 async def generate_auth_script(
-    traces: list[Trace],
+    bundle: CaptureBundle,
     api_name: str,
     system_context: str | None = None,
 ) -> str:
@@ -86,16 +80,7 @@ async def generate_auth_script(
     optionally ``refresh_token()`` (string).
     Raises NoAuthDetected if the LLM finds no auth.
     """
-    trace_summaries = _prepare_trace_list(traces)
-
-    trace_index = {t.meta.id: t for t in traces}
-    tools = INVESTIGATION_TOOLS + [make_inspect_trace_tool()]
-    executors: dict[str, Callable[[dict[str, Any]], str]] = {
-        **TOOL_EXECUTORS,
-        "inspect_trace": lambda inp: execute_inspect_trace(
-            inp, trace_index
-        ),
-    }
+    trace_summaries = _prepare_trace_list(bundle.traces)
 
     prompt = f"""## API: {api_name}
 
@@ -109,14 +94,14 @@ Use the `inspect_trace` tool to examine any trace in detail.
     if system_context is not None:
         system = [system_context, AUTH_INSTRUCTIONS]
 
-    text = await llm.ask(
-        prompt,
+    conv = llm.Conversation(
         system=system,
         max_tokens=8192,
         label="generate_auth_script",
-        tools=tools,
-        executors=executors,
+        tool_names=["decode_base64", "decode_url", "decode_jwt", "inspect_trace"],
+        bundle=bundle,
     )
+    text = await conv.ask_text(prompt)
 
     if _NO_AUTH_SENTINEL in text and "```" not in text:
         raise NoAuthDetected("LLM found no authentication mechanism")
@@ -166,8 +151,6 @@ def _prepare_trace_list(traces: list[Trace]) -> str:
 
 def _extract_script(text: str) -> str:
     """Extract Python code from a markdown code block."""
-    import re
-
     match = re.search(r"```python\s*\n(.*?)```", text, re.DOTALL)
     if match:
         return match.group(1).strip() + "\n"

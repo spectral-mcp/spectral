@@ -23,6 +23,7 @@ from cli.formats.capture_bundle import (
     WsConnectionMeta,
     WsMessageMeta,
 )
+from cli.helpers.storage import DuplicateCaptureError, store_capture
 
 
 def read_message(stream: IO[bytes]) -> dict[str, Any]:
@@ -100,8 +101,6 @@ def deserialize_bundle(msg: dict[str, Any]) -> tuple[str, CaptureBundle]:
 
 def run_host() -> None:
     """Native messaging host entry point: read one message, process, respond."""
-    from cli.helpers.storage import DuplicateCaptureError, store_capture
-
     stdin = sys.stdin.buffer
     stdout = sys.stdout.buffer
 

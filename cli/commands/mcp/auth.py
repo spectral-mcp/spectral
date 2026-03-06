@@ -5,9 +5,12 @@ Provides token validation, auto-refresh, and interactive acquisition.
 
 from __future__ import annotations
 
+import getpass
 import time
 from types import ModuleType
 from typing import Any
+
+import click
 
 from cli.formats.mcp_tool import TokenState
 from cli.helpers.storage import (
@@ -107,20 +110,14 @@ def _prompt_text(label: str) -> str:
             print(f"{label}: ", end="", flush=True)  # noqa: T201
             return tty.readline().strip()
     except OSError:
-        import click
-
         return click.prompt(label)
 
 
 def _prompt_secret(label: str) -> str:
     """Prompt for secret input via /dev/tty (no echo)."""
     try:
-        import getpass
-
         return getpass.getpass(f"{label}: ")
     except OSError:
-        import click
-
         return click.prompt(label, hide_input=True)
 
 

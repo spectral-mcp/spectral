@@ -58,13 +58,12 @@ async def identify_capabilities(input: IdentifyInput) -> ToolCandidate | None:
 
 {request_details}"""
 
-    result = await llm.ask(
-        prompt,
+    conv = llm.Conversation(
         system=[input.system_context, IDENTIFY_INSTRUCTIONS],
         label=f"identify_{target.meta.id}",
         max_tokens=1024,
-        response_model=IdentifyResponse,
     )
+    result = await conv.ask_json(prompt, IdentifyResponse)
 
     if not result.useful:
         return None

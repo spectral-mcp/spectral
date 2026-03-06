@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 
 from pydantic import BaseModel
 
-from cli.commands.capture.types import Context, Trace
+from cli.commands.capture.types import CaptureBundle, Trace
 from cli.formats.mcp_tool import ToolDefinition
 
 
@@ -39,8 +39,7 @@ class ToolBuildInput:
     """Input for the BuildToolStep."""
 
     candidate: ToolCandidate
-    traces: list[Trace]
-    contexts: list[Context]
+    bundle: CaptureBundle
     base_url: str
     existing_tools: list[ToolDefinition]
     system_context: str
@@ -58,7 +57,7 @@ class ToolBuildResult:
 class IdentifyInput:
     """Input for the IdentifyCapabilitiesStep (per-trace evaluation)."""
 
-    remaining_traces: list[Trace]
+    bundle: CaptureBundle
     base_url: str
     target_trace: Trace
     existing_tools: list[ToolDefinition]

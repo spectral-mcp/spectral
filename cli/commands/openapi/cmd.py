@@ -34,7 +34,6 @@ def openapi() -> None:
 def analyze(app_name: str, output: str, model: str, debug: bool, skip_enrich: bool) -> None:
     """Analyze captures for an app and produce an OpenAPI spec."""
     import asyncio
-    from datetime import datetime, timezone
     from pathlib import Path
 
     import cli.helpers.llm as llm
@@ -50,14 +49,8 @@ def analyze(app_name: str, output: str, model: str, debug: bool, skip_enrich: bo
         f"{len(bundle.contexts)} contexts"
     )
 
-    debug_dir = None
-    if debug:
-        run_ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
-        debug_dir = Path("debug") / run_ts
-        debug_dir.mkdir(parents=True, exist_ok=True)
-        console.print(f"  Debug logs → {debug_dir}")
-
-    llm.init(debug_dir=debug_dir, model=model)
+    llm.init_debug(debug=debug)
+    llm.set_model(model)
 
     def on_progress(msg: str) -> None:
         console.print(f"  {msg}")
@@ -87,13 +80,6 @@ def analyze(app_name: str, output: str, model: str, debug: bool, skip_enrich: bo
 
     console.print(f"[bold]Analyzing with LLM ({model})...[/bold]")
     openapi_dict = asyncio.run(_run())
-
-    inp_tok, out_tok = llm.get_usage()
-    if inp_tok or out_tok:
-        cache_read, cache_create = llm.get_cache_usage()
-        cost = llm.estimate_cost(model, inp_tok, out_tok, cache_read, cache_create)
-        cost_str = f" (~${cost:.2f})" if cost is not None else ""
-        console.print(f"  LLM token usage: {inp_tok:,} input, {out_tok:,} output{cost_str}")
 
     output_base = Path(output)
     output_base = output_base.parent / output_base.stem

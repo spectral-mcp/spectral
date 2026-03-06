@@ -9,6 +9,7 @@ self-contained script.
 
 from __future__ import annotations
 
+import re
 import textwrap
 
 # ---------------------------------------------------------------------------
@@ -230,6 +231,4 @@ def generate_auth_script(
 
 def _safe_filename(name: str) -> str:
     """Convert an API name to a safe filename fragment."""
-    import re
-
     return re.sub(r"[^a-zA-Z0-9_-]", "-", name).strip("-").lower()

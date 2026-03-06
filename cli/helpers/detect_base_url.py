@@ -9,7 +9,7 @@ from cli.commands.capture.types import CaptureBundle
 from cli.helpers.http import compact_url
 from cli.helpers.json import extract_json
 import cli.helpers.llm as llm
-from cli.helpers.llm_tools import INVESTIGATION_TOOLS, TOOL_EXECUTORS
+from cli.helpers.storage import load_app_meta
 
 
 @dataclass(frozen=True, order=True)
@@ -62,12 +62,11 @@ Observed requests (call count shown when > 1):
 Respond with a compact JSON object (no indentation):
 {{"base_url": "https://..."}}"""
 
-    text = await llm.ask(
-        prompt,
+    conv = llm.Conversation(
         label="detect_api_base_url",
-        tools=INVESTIGATION_TOOLS,
-        executors=TOOL_EXECUTORS,
+        tool_names=["decode_base64", "decode_url", "decode_jwt"],
     )
+    text = await conv.ask_text(prompt)
 
     result = extract_json(text)
     if isinstance(result, dict) and "base_url" in result:
@@ -83,7 +82,6 @@ Respond with a compact JSON object (no indentation):
 def _load_cached_base_url(app_name: str) -> str | None:
     """Check app.json for a previously saved base_url."""
     try:
-        from cli.helpers.storage import load_app_meta
         meta = load_app_meta(app_name)
         if meta.base_url:
             return meta.base_url

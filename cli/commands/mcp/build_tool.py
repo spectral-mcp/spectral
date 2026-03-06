@@ -6,13 +6,13 @@ import re
 from typing import Any, cast
 
 from cli.commands.mcp.identify import format_request_details
-from cli.commands.mcp.investigation import make_mcp_tools
 from cli.commands.mcp.types import (
     BuildToolResponse,
     ToolBuildInput,
     ToolBuildResult,
 )
 import cli.helpers.llm as llm
+from cli.helpers.llm.tools import MCP_TOOL_NAMES
 
 BUILD_TOOL_INSTRUCTIONS = """\
 You are analyzing captured HTTP traffic from a web application to identify and document API capabilities as MCP tools.
@@ -80,7 +80,7 @@ async def build_tool(input: ToolBuildInput) -> ToolBuildResult:
 
     # Format target trace request details inline
     target_trace = next(
-        (t for t in input.traces if t.meta.id in candidate.trace_ids),
+        (t for t in input.bundle.traces if t.meta.id in candidate.trace_ids),
         None,
     )
     target_details = ""
@@ -99,17 +99,18 @@ async def build_tool(input: ToolBuildInput) -> ToolBuildResult:
 {existing_tools_hint}
 {target_details}"""
 
-    tools, executors = make_mcp_tools(input.traces, contexts=input.contexts)
+    tool_names = list(MCP_TOOL_NAMES)
+    if input.bundle.contexts:
+        tool_names.append("inspect_context")
 
-    result = await llm.ask(
-        prompt,
+    conv = llm.Conversation(
         system=[input.system_context, BUILD_TOOL_INSTRUCTIONS],
         label=f"build_tool_{candidate.name}",
-        tools=tools,
-        executors=executors,
+        tool_names=tool_names,
+        bundle=input.bundle,
         max_tokens=8192,
-        response_model=BuildToolResponse,
     )
+    result = await conv.ask_json(prompt, BuildToolResponse)
 
     tool_result = ToolBuildResult(tool=result.tool, consumed_trace_ids=result.consumed_trace_ids)
     _validate_tool_result(tool_result)

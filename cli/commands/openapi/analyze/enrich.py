@@ -57,7 +57,8 @@ Provide a JSON response with these keys:
 Respond in compact JSON (no indentation)."""
 
         try:
-            text = await llm.ask(prompt, max_tokens=4096, label=f"enrich_{ep.id}")
+            conv = llm.Conversation(max_tokens=4096, label=f"enrich_{ep.id}")
+            text = await conv.ask_text(prompt)
             data = extract_json(text)
 
             if isinstance(data, dict):

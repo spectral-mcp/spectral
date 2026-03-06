@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+from urllib.parse import urlparse
+
 from cli.formats.capture_bundle import Header
+from cli.helpers.llm.tools._decode_base64 import execute as execute_decode_base64
 
 
 def get_header(headers: list[Header], name: str) -> str | None:
@@ -45,10 +48,6 @@ def compact_url(url: str) -> str:
     Only compacts segments that are >60 chars AND decode to valid UTF-8 text via base64.
     This avoids false positives on hex IDs, normal words, etc.
     """
-    from urllib.parse import urlparse
-
-    from cli.helpers.llm_tools import execute_decode_base64
-
     parsed = urlparse(url)
     segments = parsed.path.split("/")
     compacted: list[str] = []

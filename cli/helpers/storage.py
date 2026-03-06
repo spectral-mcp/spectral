@@ -22,6 +22,8 @@ import os
 from pathlib import Path
 import re
 
+import click
+
 from cli.commands.capture.loader import load_bundle, load_bundle_dir, write_bundle_dir
 from cli.commands.capture.types import CaptureBundle, merge_bundles
 from cli.formats.app_meta import AppMeta
@@ -178,8 +180,6 @@ def resolve_app(name: str) -> Path:
 
     Raises ``click.ClickException`` if not found.
     """
-    import click
-
     d = app_dir(name)
     if not (d / "app.json").is_file():
         raise click.ClickException(f"App '{name}' not found. Run 'spectral capture list' to see known apps.")
@@ -191,8 +191,6 @@ def load_app_bundle(app_name: str) -> CaptureBundle:
 
     Raises ``click.ClickException`` if the app doesn't exist or has no captures.
     """
-    import click
-
     resolve_app(app_name)
     cap_dirs = list_captures(app_name)
     if not cap_dirs:
@@ -285,8 +283,6 @@ def load_app_meta(app_name: str) -> AppMeta:
 
     Raises ``click.ClickException`` if the app doesn't exist.
     """
-    import click
-
     meta_path = app_dir(app_name) / "app.json"
     if not meta_path.is_file():
         raise click.ClickException(f"App '{app_name}' not found.")

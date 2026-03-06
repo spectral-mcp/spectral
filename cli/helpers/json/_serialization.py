@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from typing import Any
 
+import compact_json  # type: ignore[import-untyped]
+
 
 def minified(obj: Any) -> str:
     """Serialize *obj* to compact JSON (no whitespace) for LLM prompts."""
@@ -18,8 +20,6 @@ def compact(obj: Any) -> str:
     single line while larger structures remain indented.  Uses compact-json
     for reliable formatting.
     """
-    import compact_json  # type: ignore[import-untyped]
-
     formatter = compact_json.Formatter()
     formatter.indent_spaces = 2
     formatter.max_inline_length = 80

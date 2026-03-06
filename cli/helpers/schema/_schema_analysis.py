@@ -12,6 +12,7 @@ from collections import defaultdict
 import re
 from typing import Any, cast
 
+from cli.helpers.json import extract_json
 import cli.helpers.llm as llm
 from cli.helpers.schema._schema_inference import infer_schema
 
@@ -228,9 +229,8 @@ async def _resolve_map_candidates(schema: dict[str, Any]) -> None:
         '[{"group": 1, "is_map": true}, ...]'
     )
 
-    from cli.helpers.json import extract_json
-
-    raw = await llm.ask(prompt, label="resolve-map-candidates")
+    conv = llm.Conversation(label="resolve-map-candidates")
+    raw = await conv.ask_text(prompt)
     parsed = extract_json(raw)
     decisions: list[dict[str, Any]] = parsed if isinstance(parsed, list) else [parsed]
 

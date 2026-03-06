@@ -6,6 +6,7 @@ providing convenient access to all data from a loaded capture bundle.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 import re
 import uuid
@@ -83,6 +84,16 @@ class CaptureBundle:
             if ws.meta.id == ws_id:
                 return ws
         return None
+
+    def filter_traces(self, predicate: Callable[[Trace], bool]) -> CaptureBundle:
+        """Return a new bundle keeping only traces that match *predicate*."""
+        return CaptureBundle(
+            manifest=self.manifest,
+            traces=[t for t in self.traces if predicate(t)],
+            ws_connections=self.ws_connections,
+            contexts=self.contexts,
+            timeline=self.timeline,
+        )
 
 
 # ---------------------------------------------------------------------------

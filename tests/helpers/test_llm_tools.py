@@ -1,18 +1,21 @@
-"""Tests for MCP investigation tools."""
+"""Tests for LLM tool modules (inspect, query, infer, context)."""
 # pyright: reportPrivateUsage=false
 
 from __future__ import annotations
 
 import json
 
-from cli.commands.mcp.investigation import (
-    _execute_infer_request_schema,
-    _execute_inspect_context,
-    _execute_inspect_request,
-    _execute_query_traces,
-    make_mcp_tools,
-)
 from cli.helpers.http import sanitize_headers
+from cli.helpers.llm.tools import make_tools
+from cli.helpers.llm.tools._infer_request_schema import (
+    execute as execute_infer_request_schema,
+)
+from cli.helpers.llm.tools._inspect_context import execute as execute_inspect_context
+from cli.helpers.llm.tools._inspect_request import execute as execute_inspect_request
+from cli.helpers.llm.tools._query_traces import (
+    _QUERY_TRACES_MAX_OUTPUT,
+    execute as execute_query_traces,
+)
 from tests.conftest import make_context, make_trace
 
 
@@ -42,7 +45,7 @@ class TestInspectRequest:
     def test_returns_request_only(self) -> None:
         traces = _sample_traces()
         index = {t.meta.id: t for t in traces}
-        result = _execute_inspect_request({"trace_id": "t_0001"}, index)
+        result = execute_inspect_request({"trace_id": "t_0001"}, index)
         parsed = json.loads(result)
         assert parsed["method"] == "POST"
         assert "search" in parsed["url"]
@@ -52,7 +55,7 @@ class TestInspectRequest:
         assert "response_headers" not in parsed
 
     def test_not_found(self) -> None:
-        result = _execute_inspect_request({"trace_id": "t_9999"}, {})
+        result = execute_inspect_request({"trace_id": "t_9999"}, {})
         assert "not found" in result
 
 
@@ -60,7 +63,7 @@ class TestInferRequestSchema:
     def test_merges_bodies(self) -> None:
         traces = _sample_traces()
         index = {t.meta.id: t for t in traces}
-        result = _execute_infer_request_schema(
+        result = execute_infer_request_schema(
             {"trace_ids": ["t_0001", "t_0002"]}, index
         )
         schema = json.loads(result)
@@ -74,13 +77,13 @@ class TestInferRequestSchema:
     def test_no_bodies(self) -> None:
         traces = _sample_traces()
         index = {t.meta.id: t for t in traces}
-        result = _execute_infer_request_schema(
+        result = execute_infer_request_schema(
             {"trace_ids": ["t_0003"]}, index
         )
         assert "No JSON request bodies" in result
 
     def test_unknown_trace(self) -> None:
-        result = _execute_infer_request_schema(
+        result = execute_infer_request_schema(
             {"trace_ids": ["t_9999"]}, {}
         )
         assert "No JSON request bodies" in result
@@ -89,7 +92,7 @@ class TestInferRequestSchema:
 class TestQueryTraces:
     def test_filter_by_url(self) -> None:
         traces = _sample_traces()
-        result = _execute_query_traces(
+        result = execute_query_traces(
             {"expression": '[.[] | select(.url | test("search")) | .id]'},
             traces,
         )
@@ -98,7 +101,7 @@ class TestQueryTraces:
 
     def test_filter_by_path(self) -> None:
         traces = _sample_traces()
-        result = _execute_query_traces(
+        result = execute_query_traces(
             {"expression": '[.[] | select(.path | test("/api/users/")) | .id]'},
             traces,
         )
@@ -107,7 +110,7 @@ class TestQueryTraces:
 
     def test_extract_body_field(self) -> None:
         traces = _sample_traces()
-        result = _execute_query_traces(
+        result = execute_query_traces(
             {"expression": '[.[] | select(.request_body != null) | {id, origin: .request_body.origin}]'},
             traces,
         )
@@ -122,7 +125,7 @@ class TestQueryTraces:
             make_trace("t_0004", "GET", "https://api.example.com/api/fail", 404, timestamp=4000),
             make_trace("t_0005", "POST", "https://api.example.com/api/error", 500, timestamp=5000),
         ]
-        result = _execute_query_traces(
+        result = execute_query_traces(
             {"expression": '[.[] | select(.status >= 400)]'},
             traces,
         )
@@ -132,15 +135,13 @@ class TestQueryTraces:
 
     def test_invalid_expression(self) -> None:
         traces = _sample_traces()
-        result = _execute_query_traces(
+        result = execute_query_traces(
             {"expression": "[.[] | select(.invalid syntax"},
             traces,
         )
         assert "Invalid jq expression" in result
 
     def test_output_too_large(self) -> None:
-        from cli.commands.mcp.investigation import _QUERY_TRACES_MAX_OUTPUT
-
         # Create traces with large response bodies that will exceed the limit
         traces = [
             make_trace(
@@ -151,7 +152,7 @@ class TestQueryTraces:
             )
             for i in range(_QUERY_TRACES_MAX_OUTPUT // 100)
         ]
-        result = _execute_query_traces(
+        result = execute_query_traces(
             {"expression": "[.[] | .response_body]"},
             traces,
         )
@@ -166,7 +167,7 @@ class TestInspectContext:
             page_url="https://example.com/home",
         )
         index = {ctx.meta.id: ctx}
-        result = _execute_inspect_context({"context_id": "c_0001"}, index)
+        result = execute_inspect_context({"context_id": "c_0001"}, index)
         parsed = json.loads(result)
         assert parsed["action"] == "click"
         assert parsed["element"]["text"] == "Search"
@@ -174,7 +175,7 @@ class TestInspectContext:
         assert parsed["page"]["url"] == "https://example.com/home"
 
     def test_not_found(self) -> None:
-        result = _execute_inspect_context({"context_id": "c_9999"}, {})
+        result = execute_inspect_context({"context_id": "c_9999"}, {})
         assert "not found" in result
 
     def test_page_content_included(self) -> None:
@@ -209,7 +210,7 @@ class TestInspectContext:
             )
         )
         index = {ctx.meta.id: ctx}
-        result = _execute_inspect_context({"context_id": "c_0010"}, index)
+        result = execute_inspect_context({"context_id": "c_0010"}, index)
         parsed = json.loads(result)
         assert "page_content" in parsed
         pc = parsed["page_content"]
@@ -219,10 +220,15 @@ class TestInspectContext:
         assert pc["alerts"] == ["Sale today!"]
 
 
-class TestMakeMcpTools:
+class TestMakeTools:
     def test_tool_set_completeness(self) -> None:
         traces = _sample_traces()
-        tools, executors = make_mcp_tools(traces)
+        tools, executors = make_tools(
+            ["decode_base64", "decode_url", "decode_jwt",
+             "inspect_request", "inspect_trace",
+             "infer_request_schema", "query_traces"],
+            traces=traces,
+        )
 
         tool_names = {t["name"] for t in tools}
         assert "inspect_request" in tool_names
@@ -240,7 +246,14 @@ class TestMakeMcpTools:
     def test_includes_inspect_context_with_contexts(self) -> None:
         traces = _sample_traces()
         contexts = [make_context("c_0001", 1000)]
-        tools, executors = make_mcp_tools(traces, contexts=contexts)
+        tools, executors = make_tools(
+            ["decode_base64", "decode_url", "decode_jwt",
+             "inspect_request", "inspect_trace",
+             "infer_request_schema", "query_traces",
+             "inspect_context"],
+            traces=traces,
+            contexts=contexts,
+        )
 
         tool_names = {t["name"] for t in tools}
         assert "inspect_context" in tool_names

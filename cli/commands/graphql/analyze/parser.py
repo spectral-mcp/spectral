@@ -14,12 +14,20 @@ from graphql import parse as gql_parse
 from graphql.error import GraphQLSyntaxError
 from graphql.language import print_ast
 from graphql.language.ast import (
+    BooleanValueNode,
+    EnumValueNode,
     FieldNode,
+    FloatValueNode,
     FragmentDefinitionNode,
     FragmentSpreadNode,
     InlineFragmentNode,
+    IntValueNode,
+    ListValueNode,
+    NullValueNode,
+    ObjectValueNode,
     OperationDefinitionNode,
     SelectionSetNode,
+    StringValueNode,
 )
 
 from cli.commands.capture.types import Trace
@@ -221,17 +229,6 @@ def _generate_anonymous_name(op_type: str, fields: list[ParsedField]) -> str:
 
 def _ast_value_to_python(node: Any) -> Any:
     """Convert a graphql-core AST value node to a Python value."""
-    from graphql.language.ast import (
-        BooleanValueNode,
-        EnumValueNode,
-        FloatValueNode,
-        IntValueNode,
-        ListValueNode,
-        NullValueNode,
-        ObjectValueNode,
-        StringValueNode,
-    )
-
     if isinstance(node, StringValueNode):
         return node.value
     if isinstance(node, IntValueNode):

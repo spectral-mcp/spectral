@@ -72,7 +72,8 @@ Provide a JSON response:
 Respond in compact JSON only (no indentation)."""
 
         try:
-            text = await llm.ask(prompt, max_tokens=1024, label=f"enrich_gql_{type_rec.name}")
+            conv = llm.Conversation(max_tokens=1024, label=f"enrich_gql_{type_rec.name}")
+            text = await conv.ask_text(prompt)
             data = extract_json(text)
             if isinstance(data, dict):
                 _apply_type_enrichment(type_rec, data)
@@ -96,7 +97,8 @@ Provide a JSON response:
 Respond in compact JSON only (no indentation)."""
 
         try:
-            text = await llm.ask(prompt, max_tokens=256, label=f"enrich_gql_enum_{enum_name}")
+            conv = llm.Conversation(max_tokens=256, label=f"enrich_gql_enum_{enum_name}")
+            text = await conv.ask_text(prompt)
             data = extract_json(text)
             if isinstance(data, dict):
                 desc = data.get("description")

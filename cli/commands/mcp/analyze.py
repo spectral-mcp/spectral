@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from cli.commands.capture.types import CaptureBundle, Trace
+from cli.commands.capture.types import CaptureBundle
 from cli.commands.mcp.build_tool import build_tool
 from cli.commands.mcp.identify import identify_capabilities
 from cli.commands.mcp.types import (
@@ -31,17 +31,17 @@ async def build_mcp_tools(
         if on_progress:
             on_progress(msg)
 
-    all_traces = list(bundle.traces)
-
     # Step 1: Detect base URL
     progress("Detecting API base URL (LLM)...")
     base_url = await detect_base_url(bundle, app_name)
     progress(f"  API base URL: {base_url}")
 
     # Step 2: Filter traces
-    total_before = len(all_traces)
-    filtered = [t for t in all_traces if t.meta.request.url.startswith(base_url)]
-    progress(f"  Kept {len(filtered)}/{total_before} traces under {base_url}")
+    total_before = len(bundle.traces)
+    filtered_bundle = bundle.filter_traces(
+        lambda t: t.meta.request.url.startswith(base_url)
+    )
+    progress(f"  Kept {len(filtered_bundle.traces)}/{total_before} traces under {base_url}")
 
     # Build system context (shared across identify + build_tool for prompt caching)
     system_context = build_shared_context(bundle, base_url)
@@ -49,18 +49,17 @@ async def build_mcp_tools(
     # Step 3: Greedy per-trace identification + build loop
     progress("Identifying capabilities and building tools...")
     tools: list[ToolDefinition] = []
-    remaining: list[Trace] = list(filtered)
-    contexts = list(bundle.contexts)
+    remaining_bundle = filtered_bundle
     iterations = 0
 
-    while remaining and iterations < _MAX_ITERATIONS:
+    while remaining_bundle.traces and iterations < _MAX_ITERATIONS:
         iterations += 1
-        target = remaining[0]
+        target = remaining_bundle.traces[0]
 
         # Lightweight: is this trace useful?
         candidate = await identify_capabilities(
             IdentifyInput(
-                remaining_traces=remaining,
+                bundle=remaining_bundle,
                 base_url=base_url,
                 target_trace=target,
                 existing_tools=tools,
@@ -70,7 +69,9 @@ async def build_mcp_tools(
 
         if candidate is None:
             progress(f"  Evaluating {target.meta.id}... skip")
-            remaining = remaining[1:]
+            remaining_bundle = remaining_bundle.filter_traces(
+                lambda t: t.meta.id != target.meta.id
+            )
             continue
 
         # Full build with investigation tools
@@ -78,8 +79,7 @@ async def build_mcp_tools(
         build_result = await build_tool(
             ToolBuildInput(
                 candidate=candidate,
-                traces=filtered,
-                contexts=contexts,
+                bundle=filtered_bundle,
                 base_url=base_url,
                 existing_tools=tools,
                 system_context=system_context,
@@ -89,13 +89,15 @@ async def build_mcp_tools(
 
         # Remove consumed traces
         consumed = set(build_result.consumed_trace_ids)
-        before_count = len(remaining)
-        remaining = [t for t in remaining if t.meta.id not in consumed]
-        removed = before_count - len(remaining)
+        before_count = len(remaining_bundle.traces)
+        remaining_bundle = remaining_bundle.filter_traces(
+            lambda t: t.meta.id not in consumed
+        )
+        removed = before_count - len(remaining_bundle.traces)
         progress(
             f"    \u2192 {build_result.tool.name}: {build_result.tool.request.method} "
             f"{build_result.tool.request.path} "
-            f"(removed {removed} traces, {len(remaining)} remaining)"
+            f"(removed {removed} traces, {len(remaining_bundle.traces)} remaining)"
         )
 
     progress(f"Extracted {len(tools)} tool(s).")
