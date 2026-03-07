@@ -5,7 +5,6 @@ Provides token validation, auto-refresh, and interactive acquisition.
 
 from __future__ import annotations
 
-import getpass
 import time
 from types import ModuleType
 from typing import Any
@@ -97,14 +96,16 @@ def load_auth_module(app_name: str) -> ModuleType:
     source = script.read_text()
     mod = ModuleType(f"spectral_auth_{app_name}")
 
-    # Inject prompt utilities
+    # Inject helpers (prompt, messaging, debug)
     mod.prompt_text = _prompt_text  # type: ignore[attr-defined]
     mod.prompt_secret = _prompt_secret  # type: ignore[attr-defined]
+    mod.tell_user = _tell_user  # type: ignore[attr-defined]
+    mod.wait_user_confirmation = _wait_user_confirmation  # type: ignore[attr-defined]
 
-    # Inject a print() that captures output for LLM debugging
+    # Inject debug() for LLM troubleshooting (captured, shown on next fix attempt)
     captured_script_output.clear()
 
-    def _capture_print(*args: Any, **kwargs: Any) -> None:
+    def _capture_debug(*args: Any, **kwargs: Any) -> None:
         import io as _io
 
         buf = _io.StringIO()
@@ -112,7 +113,7 @@ def load_auth_module(app_name: str) -> ModuleType:
         text = buf.getvalue()
         captured_script_output.append(text)
 
-    mod.print = _capture_print  # type: ignore[attr-defined]
+    mod.debug = _capture_debug  # type: ignore[attr-defined]
 
     code = compile(source, str(script), "exec")
     exec(code, mod.__dict__)
@@ -120,21 +121,25 @@ def load_auth_module(app_name: str) -> ModuleType:
 
 
 def _prompt_text(label: str) -> str:
-    """Prompt for text input via /dev/tty."""
-    try:
-        with open("/dev/tty") as tty:
-            print(f"{label}: ", end="", flush=True)  # noqa: T201
-            return tty.readline().strip()
-    except OSError:
-        return click.prompt(label)
+    """Prompt for text input."""
+    return click.prompt(label)
 
 
 def _prompt_secret(label: str) -> str:
-    """Prompt for secret input via /dev/tty (no echo)."""
-    try:
-        return getpass.getpass(f"{label}: ")
-    except OSError:
-        return click.prompt(label, hide_input=True)
+    """Prompt for secret input (no echo)."""
+    return click.prompt(label, hide_input=True)
+
+
+def _tell_user(message: str) -> None:
+    """Display a message to the user. Also captured for LLM debugging."""
+    click.echo(message)
+    captured_script_output.append(message + "\n")
+
+
+def _wait_user_confirmation(message: str) -> None:
+    """Display a message and wait for the user to press Enter."""
+    _tell_user(message)
+    click.pause("")
 
 
 def _result_to_token_state(result: dict[str, Any]) -> TokenState:

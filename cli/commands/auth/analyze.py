@@ -35,9 +35,12 @@ You must produce ONLY two functions (the second is optional):
 1. `acquire_token()` — **required**, takes NO arguments
 2. `refresh_token(current_refresh_token)` — only if a refresh endpoint was detected
 
-These functions are loaded dynamically by spectral. Two helper functions are injected into the module's namespace at load time:
+These functions are loaded dynamically by spectral. Helper functions are injected into the module's namespace at load time:
 - `prompt_text(label)` — prompt the user for text input (e.g., email, phone number)
 - `prompt_secret(label)` — prompt the user for secret input with no echo (e.g., password, OTP code)
+- `tell_user(message)` — display a message to the user (e.g., "Open this URL in your browser: ...")
+- `wait_user_confirmation(message)` — display a message and wait for the user to press Enter (e.g., for OAuth flows where the user must authorize in a browser before continuing)
+- `debug(...)` — log intermediate values for troubleshooting (same interface as print). Output is captured and shown to you if the script fails, so you can diagnose issues. Use it freely for response bodies, status codes, token contents, etc.
 
 ### acquire_token()
 - Takes NO arguments — use `prompt_text(label)` and `prompt_secret(label)` to get user credentials
@@ -56,7 +59,7 @@ These functions are loaded dynamically by spectral. Two helper functions are inj
 
 - **Stdlib only**: only use `base64`, `json`, `re`, `time`, `urllib.parse`, `urllib.request` — zero pip dependencies
 - **No caching**: do not cache tokens, do not read/write files
-- **Use prompt helpers**: use `prompt_text("Email")` and `prompt_secret("Password")` for user input
+- **Use injected helpers**: use `prompt_text`/`prompt_secret` for user input, `tell_user`/`wait_user_confirmation` for messages, `debug` for troubleshooting. Do NOT use `input()` or `print()` directly
 - **Return headers**: return the actual HTTP headers to inject, not raw tokens
 - **Include necessary imports** at the top of your code
 - **Handle the FULL auth flow**: if auth requires multiple steps, acquire_token must handle ALL steps
@@ -190,7 +193,7 @@ Use the `inspect_trace` tool to examine any trace in detail.
 
 {error_trace}
 
-Fix the script so it works. You may add `print()` statements to debug (their output will be shown to you if the script fails again). Return ONLY the corrected Python code in a ```python block."""
+Fix the script so it works. You may add `debug()` calls to log intermediate values (their output will be shown to you if the script fails again). Return ONLY the corrected Python code in a ```python block."""
 
         system: list[str] | None = None
         if system_context is not None:
@@ -209,7 +212,7 @@ Fix the script so it works. You may add `print()` statements to debug (their out
 
 {error_trace}
 
-Fix the script so it works. You may add `print()` statements to debug (their output will be shown to you if the script fails again). Return ONLY the corrected Python code in a ```python block."""
+Fix the script so it works. You may add `debug()` calls to log intermediate values (their output will be shown to you if the script fails again). Return ONLY the corrected Python code in a ```python block."""
 
     text = await conv.ask_text(prompt)
 
