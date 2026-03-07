@@ -50,6 +50,86 @@ function isSkippableContentType(mimeType) {
 }
 
 /**
+ * Finalize a redirect trace from a pending request and its redirectResponse.
+ * Called when requestWillBeSent fires with redirectResponse, meaning the
+ * previous request for this requestId received a 3xx and the browser is
+ * following the redirect.
+ */
+function finalizeRedirectTrace(pending, redirectResponse) {
+  captureState.traceCounter++;
+  const traceId = padId('t', captureState.traceCounter);
+
+  // Build timing from redirectResponse.timing
+  const timing = redirectResponse.timing || {};
+  const timingInfo = {
+    dns_ms: timing.dnsEnd - timing.dnsStart || 0,
+    connect_ms: timing.connectEnd - timing.connectStart || 0,
+    tls_ms: timing.sslEnd - timing.sslStart || 0,
+    send_ms: timing.sendEnd - timing.sendStart || 0,
+    wait_ms: timing.receiveHeadersEnd - timing.sendEnd || 0,
+    receive_ms: 0,
+    total_ms: 0,
+  };
+  timingInfo.total_ms =
+    timingInfo.dns_ms +
+    timingInfo.connect_ms +
+    timingInfo.tls_ms +
+    timingInfo.send_ms +
+    timingInfo.wait_ms;
+
+  // Use wire-level response headers from ExtraInfo if available
+  let responseHeaders = normalizeHeaders(redirectResponse.headers);
+  const extra = captureState.pendingExtraInfo.get(pending.requestId);
+  if (extra?.responseHeaders) {
+    responseHeaders = extra.responseHeaders;
+    delete extra.responseHeaders;
+    if (!extra.requestHeaders) {
+      captureState.pendingExtraInfo.delete(pending.requestId);
+    }
+  }
+
+  // Process request body
+  let requestBodyBytes = null;
+  if (pending.request.postData) {
+    requestBodyBytes = stringToBytes(pending.request.postData);
+  }
+
+  const trace = {
+    id: traceId,
+    timestamp: pending.timestamp,
+    type: 'http',
+    request: {
+      method: pending.request.method,
+      url: pending.request.url,
+      headers: pending.request.headers,
+      body_file: requestBodyBytes?.length ? `${traceId}_request.bin` : null,
+      body_size: requestBodyBytes?.length || 0,
+      body_encoding: null,
+    },
+    response: {
+      status: redirectResponse.status,
+      status_text: redirectResponse.statusText || '',
+      headers: responseHeaders,
+      body_file: null,
+      body_size: 0,
+      body_encoding: null,
+    },
+    timing: timingInfo,
+    initiator: pending.initiator,
+    context_refs: findContextRefs(pending.timestamp),
+    _requestBodyBytes: requestBodyBytes,
+    _responseBodyBytes: null,
+  };
+
+  captureState.traces.push(trace);
+  captureState.timeline.push({
+    timestamp: pending.timestamp,
+    type: 'trace',
+    ref: traceId,
+  });
+}
+
+/**
  * Handle Network.requestWillBeSent
  */
 export function handleRequestWillBeSent(params) {
@@ -64,6 +144,15 @@ export function handleRequestWillBeSent(params) {
   // Compute time offset on the first event (wallTime = epoch seconds)
   if (captureState.timeOffset === null && wallTime) {
     captureState.timeOffset = wallTime * 1000 - timestamp * 1000;
+  }
+
+  // Handle redirect: finalize the previous request as a trace before
+  // overwriting the pending entry with the follow-up request.
+  if (params.redirectResponse) {
+    const pending = captureState.pendingRequests.get(requestId);
+    if (pending) {
+      finalizeRedirectTrace(pending, params.redirectResponse);
+    }
   }
 
   // Store partial trace data
