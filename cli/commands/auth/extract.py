@@ -1,13 +1,19 @@
-"""Extract auth tokens from captured traces."""
+"""Extract auth tokens from captured traces.
+
+Also contains the ``spectral auth extract`` Click command.
+"""
 
 from __future__ import annotations
 
+import asyncio
 import time
 
+import click
 from pydantic import BaseModel
 
 from cli.commands.capture.types import CaptureBundle, Trace
 from cli.formats.mcp_tool import TokenState
+from cli.helpers.console import console
 from cli.helpers.http import get_header
 import cli.helpers.llm as llm
 
@@ -117,3 +123,39 @@ async def extract_auth_from_traces(
         return None
 
     return TokenState(headers=extracted, obtained_at=time.time())
+
+
+@click.command()
+@click.argument("app_name")
+@click.option("--model", default="claude-sonnet-4-5-20250929", help="LLM model to use")
+@click.option(
+    "--debug", is_flag=True, default=False, help="Save LLM prompts/responses to debug/"
+)
+def extract(app_name: str, model: str, debug: bool) -> None:
+    """Extract auth tokens from captured traces.
+
+    Scans the most recent traces for auth headers (Authorization, cookies, etc.)
+    and writes them to token.json without re-authentication.
+    """
+    from cli.helpers.storage import load_app_bundle, resolve_app, write_token
+
+    resolve_app(app_name)
+    console.print(f"[bold]Loading captures for app:[/bold] {app_name}")
+    bundle = load_app_bundle(app_name)
+    console.print(f"  Loaded {len(bundle.traces)} traces")
+
+    llm.init_debug(debug=debug)
+    llm.set_model(model)
+
+    token = asyncio.run(extract_auth_from_traces(bundle, app_name))
+
+    if token is None:
+        console.print(
+            "[yellow]No auth headers found in traces. "
+            "No token written.[/yellow]"
+        )
+        return
+
+    write_token(app_name, token)
+    header_names = ", ".join(token.headers.keys())
+    console.print(f"[green]Token saved with headers: {header_names}[/green]")

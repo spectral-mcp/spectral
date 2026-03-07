@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
+import click
+
 from cli.commands.capture.types import CaptureBundle
 from cli.commands.mcp.build_tool import build_tool
 from cli.commands.mcp.identify import identify_capabilities
@@ -106,3 +108,64 @@ async def build_mcp_tools(
         tools=tools,
         base_url=base_url,
     )
+
+
+@click.command()
+@click.argument("app_name")
+@click.option("--model", default="claude-sonnet-4-5-20250929", help="LLM model to use")
+@click.option(
+    "--debug", is_flag=True, default=False, help="Save LLM prompts/responses to debug/"
+)
+@click.option(
+    "--skip-enrich",
+    is_flag=True,
+    default=False,
+    help="Skip LLM enrichment step (business context, glossary, etc.)",
+)
+def analyze_cmd(app_name: str, model: str, debug: bool, skip_enrich: bool) -> None:
+    """Generate MCP tool definitions from captures."""
+    import asyncio
+
+    from cli.helpers.console import console
+    import cli.helpers.llm as llm
+    from cli.helpers.storage import (
+        list_captures,
+        load_app_bundle,
+        update_app_meta,
+        write_tools,
+    )
+
+    cap_count = len(list_captures(app_name))
+    console.print(f"[bold]Loading captures for app:[/bold] {app_name}")
+    bundle = load_app_bundle(app_name)
+    console.print(
+        f"  Loaded {cap_count} capture(s): "
+        f"{len(bundle.traces)} traces, "
+        f"{len(bundle.ws_connections)} WS connections, "
+        f"{len(bundle.contexts)} contexts"
+    )
+
+    llm.init_debug(debug=debug)
+    llm.set_model(model)
+
+    def on_progress(msg: str) -> None:
+        console.print(f"  {msg}")
+
+    console.print(f"[bold]Generating MCP tools with LLM ({model})...[/bold]")
+    result = asyncio.run(
+        build_mcp_tools(
+            bundle,
+            app_name,
+            on_progress=on_progress,
+            skip_enrich=skip_enrich,
+        )
+    )
+
+    write_tools(app_name, result.tools)
+    console.print(f"[green]Wrote {len(result.tools)} tool(s) to storage[/green]")
+
+    update_app_meta(app_name, base_url=result.base_url)
+    console.print(f"  Base URL: {result.base_url}")
+
+    for tool in result.tools:
+        console.print(f"  Tool: {tool.name} — {tool.request.method} {tool.request.path}")

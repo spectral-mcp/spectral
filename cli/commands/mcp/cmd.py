@@ -1,12 +1,11 @@
-"""CLI command group for the MCP server and tool generation."""
+"""MCP command group — registration only."""
 
 from __future__ import annotations
 
-import asyncio
-
 import click
 
-from cli.helpers.console import console
+from cli.commands.mcp.analyze import analyze_cmd
+from cli.commands.mcp.server import stdio
 
 
 @click.group()
@@ -14,72 +13,5 @@ def mcp() -> None:
     """MCP server and tool generation commands."""
 
 
-@mcp.command()
-def stdio() -> None:
-    """Start the MCP server on stdio.
-
-    Exposes all app tools from managed storage as MCP tools.
-    """
-    from cli.commands.mcp.server import run_server
-
-    asyncio.run(run_server())
-
-
-@mcp.command()
-@click.argument("app_name")
-@click.option("--model", default="claude-sonnet-4-5-20250929", help="LLM model to use")
-@click.option(
-    "--debug", is_flag=True, default=False, help="Save LLM prompts/responses to debug/"
-)
-@click.option(
-    "--skip-enrich",
-    is_flag=True,
-    default=False,
-    help="Skip LLM enrichment step (business context, glossary, etc.)",
-)
-def analyze(app_name: str, model: str, debug: bool, skip_enrich: bool) -> None:
-    """Generate MCP tool definitions from captures."""
-    import cli.helpers.llm as llm
-    from cli.helpers.storage import (
-        list_captures,
-        load_app_bundle,
-        update_app_meta,
-        write_tools,
-    )
-
-    cap_count = len(list_captures(app_name))
-    console.print(f"[bold]Loading captures for app:[/bold] {app_name}")
-    bundle = load_app_bundle(app_name)
-    console.print(
-        f"  Loaded {cap_count} capture(s): "
-        f"{len(bundle.traces)} traces, "
-        f"{len(bundle.ws_connections)} WS connections, "
-        f"{len(bundle.contexts)} contexts"
-    )
-
-    llm.init_debug(debug=debug)
-    llm.set_model(model)
-
-    def on_progress(msg: str) -> None:
-        console.print(f"  {msg}")
-
-    from cli.commands.mcp.analyze import build_mcp_tools
-
-    console.print(f"[bold]Generating MCP tools with LLM ({model})...[/bold]")
-    result = asyncio.run(
-        build_mcp_tools(
-            bundle,
-            app_name,
-            on_progress=on_progress,
-            skip_enrich=skip_enrich,
-        )
-    )
-
-    write_tools(app_name, result.tools)
-    console.print(f"[green]Wrote {len(result.tools)} tool(s) to storage[/green]")
-
-    update_app_meta(app_name, base_url=result.base_url)
-    console.print(f"  Base URL: {result.base_url}")
-
-    for tool in result.tools:
-        console.print(f"  Tool: {tool.name} — {tool.request.method} {tool.request.path}")
+mcp.add_command(stdio)
+mcp.add_command(analyze_cmd, "analyze")

@@ -1,13 +1,10 @@
-"""CLI command group for OpenAPI (REST) analysis."""
+"""OpenAPI command group — registration only."""
 
 from __future__ import annotations
 
-from typing import Any
-
 import click
-import yaml
 
-from cli.helpers.console import console
+from cli.commands.openapi.analyze_cmd import analyze
 
 
 @click.group("openapi")
@@ -15,83 +12,4 @@ def openapi() -> None:
     """OpenAPI (REST) analysis commands."""
 
 
-@openapi.command()
-@click.argument("app_name")
-@click.option(
-    "-o", "--output", required=True,
-    help="Output base name (produces <name>.yaml).",
-)
-@click.option("--model", default="claude-sonnet-4-5-20250929", help="LLM model to use")
-@click.option(
-    "--debug", is_flag=True, default=False, help="Save LLM prompts/responses to debug/"
-)
-@click.option(
-    "--skip-enrich",
-    is_flag=True,
-    default=False,
-    help="Skip LLM enrichment step (business context, glossary, etc.)",
-)
-def analyze(app_name: str, output: str, model: str, debug: bool, skip_enrich: bool) -> None:
-    """Analyze captures for an app and produce an OpenAPI spec."""
-    import asyncio
-    from pathlib import Path
-
-    import cli.helpers.llm as llm
-    from cli.helpers.storage import list_captures, load_app_bundle
-
-    cap_count = len(list_captures(app_name))
-    console.print(f"[bold]Loading captures for app:[/bold] {app_name}")
-    bundle = load_app_bundle(app_name)
-    console.print(
-        f"  Loaded {cap_count} capture(s): "
-        f"{len(bundle.traces)} traces, "
-        f"{len(bundle.ws_connections)} WS connections, "
-        f"{len(bundle.contexts)} contexts"
-    )
-
-    llm.init_debug(debug=debug)
-    llm.set_model(model)
-
-    def on_progress(msg: str) -> None:
-        console.print(f"  {msg}")
-
-    from cli.commands.openapi.analyze import rest_analyze
-    from cli.helpers.correlator import correlate
-    from cli.helpers.detect_base_url import detect_base_url
-
-    async def _run() -> dict[str, Any]:
-        base_url = await detect_base_url(bundle, app_name)
-        on_progress(f"API base URL: {base_url}")
-        rest_traces = [t for t in bundle.traces if t.meta.request.url.startswith(base_url)]
-        on_progress(f"Kept {len(rest_traces)}/{len(bundle.traces)} traces under {base_url}")
-
-        correlations = correlate(bundle)
-
-        openapi_dict = await rest_analyze(
-            rest_traces,
-            base_url=base_url,
-            app_name=(bundle.manifest.app.name + " API" if bundle.manifest.app.name else "Discovered API"),
-            source_filename=app_name,
-            correlations=correlations,
-            on_progress=on_progress,
-            skip_enrich=skip_enrich,
-        )
-        return openapi_dict
-
-    console.print(f"[bold]Analyzing with LLM ({model})...[/bold]")
-    openapi_dict = asyncio.run(_run())
-
-    output_base = Path(output)
-    output_base = output_base.parent / output_base.stem
-    out_path = output_base.with_suffix(".yaml")
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-
-    with open(out_path, "w") as f:
-        yaml.dump(
-            openapi_dict, f,
-            default_flow_style=False, sort_keys=False, allow_unicode=True,
-        )
-
-    console.print(f"[green]OpenAPI 3.1 spec written to {out_path}[/green]")
-    endpoint_count = len(openapi_dict.get("paths", {}))
-    console.print(f"  Found {endpoint_count} REST paths")
+openapi.add_command(analyze)

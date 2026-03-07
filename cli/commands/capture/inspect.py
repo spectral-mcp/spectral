@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 
+import click
 from rich.table import Table
 
 from cli.commands.capture.types import CaptureBundle
@@ -116,3 +117,28 @@ def _print_body(body: bytes) -> None:
             console.print(f"  {_truncate(text, 500)}")
     except UnicodeDecodeError:
         console.print(f"  <binary, {len(body)} bytes>")
+
+
+@click.command("inspect")
+@click.argument("app_name")
+@click.option(
+    "--trace", "trace_id", default=None, help="Show details for a specific trace"
+)
+def inspect_cmd(app_name: str, trace_id: str | None) -> None:
+    """Inspect the latest capture for an app."""
+    from cli.commands.capture.loader import load_bundle_dir
+    from cli.helpers.storage import latest_capture, resolve_app
+
+    resolve_app(app_name)
+    cap_dir = latest_capture(app_name)
+
+    if cap_dir is None:
+        console.print(f"No captures for app '{app_name}'.")
+        return
+
+    bundle = load_bundle_dir(cap_dir)
+
+    if trace_id:
+        inspect_trace(bundle, trace_id)
+    else:
+        inspect_summary(bundle)

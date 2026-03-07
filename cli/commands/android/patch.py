@@ -7,6 +7,8 @@ import re
 import tempfile
 from xml.etree import ElementTree as ET
 
+import click
+
 from cli.commands.android.external_tools import apktool, uber_signer
 
 NETWORK_SECURITY_CONFIG = """\
@@ -197,3 +199,39 @@ def _fix_resources(work_dir: Path) -> None:
                 content,
             )
             manifest.write_text(fixed)
+
+
+@click.command()
+@click.argument("apk_path", type=click.Path(exists=True))
+@click.option(
+    "-o",
+    "--output",
+    default=None,
+    help="Output path (file for single APK, directory for splits)",
+)
+def patch_cmd(apk_path: str, output: str | None) -> None:
+    """Patch an APK or directory of split APKs to trust user CA certificates for MITM."""
+    from cli.helpers.console import console
+
+    apk = Path(apk_path)
+
+    if apk.is_dir():
+        out = Path(output) if output else Path(str(apk).rstrip("/") + "-patched")
+        apk_count = len(list(apk.glob("*.apk")))
+        console.print(f"[bold]Patching split APKs:[/bold] {apk} ({apk_count} files)")
+        patch_apk_dir(apk, out)
+        console.print(f"[green]Patched split APKs saved to {out}/[/green]")
+        for f in sorted(out.glob("*.apk")):
+            console.print(f"  {f.name}")
+    else:
+        out = Path(output) if output else apk.with_stem(apk.stem + "-patched")
+        console.print(f"[bold]Patching APK:[/bold] {apk}")
+        patch_apk(apk, out)
+        console.print(f"[green]Patched APK saved to {out}[/green]")
+
+    console.print()
+    console.print("[bold]Next steps:[/bold]")
+    console.print(f"  1. Install: spectral android install {out}")
+    console.print("  2. Push mitmproxy CA cert: spectral android cert")
+    console.print("  3. On device: Settings > Security > Install from storage > CA certificate")
+    console.print("  4. Start proxy: spectral capture proxy -d <domain>")

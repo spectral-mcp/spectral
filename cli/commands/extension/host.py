@@ -8,6 +8,8 @@ import struct
 import sys
 from typing import IO, Any
 
+import click
+
 from cli.commands.capture.types import (
     CaptureBundle,
     Context,
@@ -147,3 +149,9 @@ def run_host() -> None:
             "success": False,
             "message": str(exc),
         })
+
+
+@click.command()
+def listen() -> None:
+    """Native messaging host (called by Chrome, not by users directly)."""
+    run_host()

@@ -3,13 +3,19 @@
 The LLM receives trace summaries, discovers the auth mechanism itself,
 and generates ``acquire_token()`` / ``refresh_token()`` functions.
 Raises ``NoAuthDetected`` if the LLM concludes there is no auth.
+
+Also contains the ``spectral auth analyze`` Click command.
 """
 
 from __future__ import annotations
 
+import asyncio
 import re
 
+import click
+
 from cli.commands.capture.types import CaptureBundle, Trace
+from cli.helpers.console import console
 import cli.helpers.llm as llm
 
 
@@ -231,3 +237,60 @@ def _extract_script(text: str) -> str:
     if stripped.startswith(("import ", "from ", "def ")):
         return stripped + "\n"
     raise ValueError("Could not extract Python code from LLM response")
+
+
+@click.command()
+@click.argument("app_name")
+@click.option("--model", default="claude-sonnet-4-5-20250929", help="LLM model to use")
+@click.option(
+    "--debug", is_flag=True, default=False, help="Save LLM prompts/responses to debug/"
+)
+def analyze(app_name: str, model: str, debug: bool) -> None:
+    """Analyze auth mechanism for an app and generate an auth script."""
+    from cli.helpers.context import build_shared_context
+    from cli.helpers.detect_base_url import detect_base_url
+    from cli.helpers.storage import (
+        auth_script_path,
+        load_app_bundle,
+        resolve_app,
+        update_app_meta,
+    )
+
+    resolve_app(app_name)
+    console.print(f"[bold]Loading captures for app:[/bold] {app_name}")
+    bundle = load_app_bundle(app_name)
+    console.print(f"  Loaded {len(bundle.traces)} traces")
+
+    llm.init_debug(debug=debug)
+    llm.set_model(model)
+
+    async def _run() -> str:
+        base_url = await detect_base_url(bundle, app_name)
+        console.print(f"  API base URL: {base_url}")
+
+        system_context = build_shared_context(bundle, base_url)
+
+        script = await generate_auth_script(
+            bundle=bundle,
+            api_name=app_name,
+            system_context=system_context,
+        )
+
+        update_app_meta(app_name, base_url=base_url)
+
+        return script
+
+    try:
+        script = asyncio.run(_run())
+    except NoAuthDetected:
+        console.print()
+        console.print(
+            "[dim]No authentication mechanism detected in traces. "
+            "No script generated.[/dim]"
+        )
+        return
+
+    script_path = auth_script_path(app_name)
+    script_path.parent.mkdir(parents=True, exist_ok=True)
+    script_path.write_text(script)
+    console.print(f"[green]Auth script written to {script_path}[/green]")
