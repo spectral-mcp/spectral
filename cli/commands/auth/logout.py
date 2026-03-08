@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import click
 
+from cli.helpers.completions import complete_app_name
 from cli.helpers.console import console
 
 
 @click.command()
-@click.argument("app_name")
+@click.argument("app_name", shell_complete=complete_app_name)
 def logout(app_name: str) -> None:
     """Remove stored token for an app."""
     from cli.helpers.storage import delete_token, resolve_app

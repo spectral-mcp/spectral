@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import click
 
+from cli.helpers.completions import complete_app_name
 from cli.helpers.console import console
 
 
 @click.command("set")
-@click.argument("app_name")
+@click.argument("app_name", shell_complete=complete_app_name)
 @click.option("--header", "-H", multiple=True, help='Header as "Name: Value" (repeatable)')
 @click.option("--cookie", "-c", multiple=True, help='Cookie as "name=value" (repeatable)')
 def set_token(app_name: str, header: tuple[str, ...], cookie: tuple[str, ...]) -> None:

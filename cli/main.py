@@ -53,5 +53,9 @@ cli.add_command(capture)
 cli.add_command(extension)
 cli.add_command(android)
 
+from cli.commands.completion import completion
+
+cli.add_command(completion)
+
 if __name__ == "__main__":
     cli()

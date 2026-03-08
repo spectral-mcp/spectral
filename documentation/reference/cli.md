@@ -85,6 +85,27 @@ Exposes all app tools from managed storage as MCP tools. This is the command use
 
 ---
 
+## completion
+
+Generate a shell completion script for bash or zsh. The script enables tab-completion for all commands, subcommands, options, and app names.
+
+```
+spectral completion bash|zsh
+```
+
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `shell` | Yes | Target shell: `bash` or `zsh` |
+
+Add the output to your shell profile to enable persistent completion:
+
+- **bash** — add `eval "$(spectral completion bash)"` to `~/.bashrc`
+- **zsh** — add `eval "$(spectral completion zsh)"` to `~/.zshrc`
+
+App names are completed dynamically from managed storage.
+
+---
+
 ## auth analyze
 
 Analyze captures to detect authentication mechanisms and generate an auth script.

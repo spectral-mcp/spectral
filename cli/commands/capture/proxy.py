@@ -9,6 +9,8 @@ import uuid
 
 import click
 
+from cli.helpers.completions import complete_app_name
+
 if TYPE_CHECKING:
     from mitmproxy.http import HTTPFlow
 
@@ -208,7 +210,7 @@ def run_proxy_to_storage(
 
 
 @click.command()
-@click.option("-a", "--app", "app_name", default=None, help="App name for storage")
+@click.option("-a", "--app", "app_name", default=None, help="App name for storage", shell_complete=complete_app_name)
 @click.option("-p", "--port", default=8080, help="Proxy listen port")
 @click.option(
     "-d",
