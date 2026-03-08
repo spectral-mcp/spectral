@@ -9,11 +9,11 @@ import click
 from cli.commands.android import android
 from cli.commands.auth import auth
 from cli.commands.capture import capture
+from cli.commands.completion import completion
 from cli.commands.extension import extension
 from cli.commands.graphql import graphql_cmd
 from cli.commands.mcp import mcp
 from cli.commands.openapi import openapi
-import cli.helpers.llm as llm
 
 # Hand-crafted spectrum analyzer waveform + "spectral" text
 # fmt: off
@@ -42,20 +42,20 @@ class _SpectralGroup(click.Group):
 @click.pass_context
 def cli(ctx: click.Context) -> None:
     """Automatically discover and document web application APIs."""
+    import cli.helpers.llm as llm
+
     ctx.call_on_close(llm.print_usage_summary)
 
 
-cli.add_command(openapi)
-cli.add_command(graphql_cmd, "graphql")
-cli.add_command(mcp)
+cli.add_command(android)
 cli.add_command(auth)
 cli.add_command(capture)
-cli.add_command(extension)
-cli.add_command(android)
-
-from cli.commands.completion import completion
-
 cli.add_command(completion)
+cli.add_command(extension)
+cli.add_command(graphql_cmd, "graphql")
+cli.add_command(mcp)
+cli.add_command(openapi)
+
 
 if __name__ == "__main__":
     cli()

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import importlib.resources
+
 import click
 
 
@@ -17,10 +19,5 @@ def completion(shell: str) -> None:
         eval "$(spectral completion bash)"   # bash
         eval "$(spectral completion zsh)"     # zsh
     """
-    from click.shell_completion import BashComplete, ZshComplete
-
-    from cli.main import cli as root_cli
-
-    cls = BashComplete if shell == "bash" else ZshComplete
-    comp = cls(root_cli, {}, "spectral", "_SPECTRAL_COMPLETE")
-    click.echo(comp.source())
+    script = importlib.resources.files("cli.completions").joinpath(f"spectral.{shell}").read_text()
+    click.echo(script)

@@ -15,7 +15,6 @@ from cli.commands.mcp.types import (
     ToolBuildInput,
 )
 from cli.formats.mcp_tool import ToolDefinition
-from cli.helpers.completions import complete_app_name
 from cli.helpers.context import build_shared_context
 from cli.helpers.detect_base_url import detect_base_url
 
@@ -112,7 +111,7 @@ async def build_mcp_tools(
 
 
 @click.command()
-@click.argument("app_name", shell_complete=complete_app_name)
+@click.argument("app_name")
 @click.option("--model", default="claude-sonnet-4-5-20250929", help="LLM model to use")
 @click.option(
     "--debug", is_flag=True, default=False, help="Save LLM prompts/responses to debug/"

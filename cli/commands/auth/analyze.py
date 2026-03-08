@@ -15,7 +15,6 @@ import re
 import click
 
 from cli.commands.capture.types import CaptureBundle, Trace
-from cli.helpers.completions import complete_app_name
 from cli.helpers.console import console
 import cli.helpers.llm as llm
 from cli.helpers.prompt import render
@@ -124,7 +123,7 @@ def extract_script(text: str) -> str:
 
 
 @click.command()
-@click.argument("app_name", shell_complete=complete_app_name)
+@click.argument("app_name")
 @click.option("--model", default="claude-sonnet-4-5-20250929", help="LLM model to use")
 @click.option(
     "--debug", is_flag=True, default=False, help="Save LLM prompts/responses to debug/"

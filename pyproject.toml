@@ -29,7 +29,7 @@ spectral = "cli.main:cli"
 include = ["cli*"]
 
 [tool.setuptools.package-data]
-"cli" = ["prompts/*.j2"]
+"cli" = ["prompts/*.j2", "completions/*"]
 
 [project.optional-dependencies]
 android = [

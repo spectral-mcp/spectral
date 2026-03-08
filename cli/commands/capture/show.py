@@ -4,12 +4,11 @@ from __future__ import annotations
 
 import click
 
-from cli.helpers.completions import complete_app_name
 from cli.helpers.console import console
 
 
 @click.command()
-@click.argument("app_name", shell_complete=complete_app_name)
+@click.argument("app_name")
 def show(app_name: str) -> None:
     """Show captures for an app."""
     from cli.commands.capture.loader import load_bundle_dir

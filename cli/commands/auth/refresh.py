@@ -4,12 +4,11 @@ from __future__ import annotations
 
 import click
 
-from cli.helpers.completions import complete_app_name
 from cli.helpers.console import console
 
 
 @click.command()
-@click.argument("app_name", shell_complete=complete_app_name)
+@click.argument("app_name")
 def refresh(app_name: str) -> None:
     """Manually refresh the auth token for an app.
 

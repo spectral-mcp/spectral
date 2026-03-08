@@ -8,7 +8,6 @@ import click
 from rich.table import Table
 
 from cli.commands.capture.types import CaptureBundle
-from cli.helpers.completions import complete_app_name
 from cli.helpers.console import console
 
 
@@ -121,7 +120,7 @@ def _print_body(body: bytes) -> None:
 
 
 @click.command("inspect")
-@click.argument("app_name", shell_complete=complete_app_name)
+@click.argument("app_name")
 @click.option(
     "--trace", "trace_id", default=None, help="Show details for a specific trace"
 )
