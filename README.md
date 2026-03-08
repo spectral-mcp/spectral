@@ -7,7 +7,10 @@
 </p>
 
 <p align="center">
-  <a href="https://romain-gilliotte.github.io/spectral/"><strong>Documentation</strong></a>
+  <a href="#install">Install</a>
+  <a href="#why-spectral">Why Spectral</a> ·
+  <a href="#how-it-works">How it works</a> ·
+  <a href="https://romain-gilliotte.github.io/spectral/"><strong>Documentation</strong></a> ·
 </p>
 
 Browse any website or mobile app normally. Spectral observes what you do, figures out the meaning behind each API call, and builds MCP tools that let AI agents use the same app.
@@ -32,13 +35,6 @@ Most apps — web, mobile, desktop — sit on top of undocumented HTTP APIs. Spe
 
 - **Also generates API specs.** Beyond MCP tools, Spectral can produce OpenAPI 3.1 specs from REST traffic and GraphQL SDL schemas from GraphQL traces — useful for documentation, code generation, or feeding other tools.
 
-## How it works
-
-1. **Capture** — Chrome extension (web) or MITM proxy records traffic while you use the app
-2. **Analyze** — An LLM correlates your actions with API calls, infers endpoint patterns, and business meaning
-3. **Authenticate** — The CLI detects the auth flow and generates a login script. Run it once; the MCP server refreshes automatically
-4. **Use** — Start the MCP server. AI agents call the API directly
-
 ## Install
 
 ```bash
@@ -48,6 +44,13 @@ curl -LsSf https://raw.githubusercontent.com/romain-gilliotte/spectral/main/inst
 You also need an [Anthropic API key](https://console.anthropic.com/) — Spectral will prompt for it on first analysis.
 
 See the [documentation](https://romain-gilliotte.github.io/spectral/) for setup guides, capture instructions, and CLI reference.
+
+## How it works
+
+1. **Capture** — Chrome extension (web) or MITM proxy records traffic while you use the app
+2. **Analyze** — An LLM correlates your actions with API calls, infers endpoint patterns, and business meaning
+3. **Authenticate** — The CLI detects the auth flow and generates a login script. Run it once; the MCP server refreshes automatically
+4. **Use** — Start the MCP server. AI agents call the API directly
 
 ## License
 
