@@ -5,7 +5,6 @@ from __future__ import annotations
 from urllib.parse import urlparse
 
 from cli.formats.capture_bundle import Header
-from cli.helpers.llm.tools._decode_base64 import execute as execute_decode_base64
 
 
 def get_header(headers: list[Header], name: str) -> str | None:
@@ -17,16 +16,26 @@ def get_header(headers: list[Header], name: str) -> str | None:
     return None
 
 
-_NOISE_HEADERS: frozenset[str] = frozenset({
-    # HTTP/2 pseudo-headers
-    ":authority", ":method", ":path", ":scheme",
-    # Browser fingerprint
-    "sec-ch-ua", "sec-ch-ua-mobile", "sec-ch-ua-platform",
-    # Fetch metadata
-    "sec-fetch-dest", "sec-fetch-mode", "sec-fetch-site",
-    # Transport / low-value
-    "accept-encoding", "priority",
-})
+_NOISE_HEADERS: frozenset[str] = frozenset(
+    {
+        # HTTP/2 pseudo-headers
+        ":authority",
+        ":method",
+        ":path",
+        ":scheme",
+        # Browser fingerprint
+        "sec-ch-ua",
+        "sec-ch-ua-mobile",
+        "sec-ch-ua-platform",
+        # Fetch metadata
+        "sec-fetch-dest",
+        "sec-fetch-mode",
+        "sec-fetch-site",
+        # Transport / low-value
+        "accept-encoding",
+        "priority",
+    }
+)
 
 
 def sanitize_headers(headers: dict[str, str]) -> dict[str, str]:
@@ -48,6 +57,10 @@ def compact_url(url: str) -> str:
     Only compacts segments that are >60 chars AND decode to valid UTF-8 text via base64.
     This avoids false positives on hex IDs, normal words, etc.
     """
+    from cli.helpers.llm.tools._decode_base64 import (
+        execute as execute_decode_base64,
+    )
+
     parsed = urlparse(url)
     segments = parsed.path.split("/")
     compacted: list[str] = []
