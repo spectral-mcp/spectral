@@ -136,18 +136,25 @@ def add_chrome(src: Path, dst: Path):
     palette_img = Image.new("P", (1, 1))
     palette_img.putpalette(flat_palette)
 
-    rgb_frames = []
+    # Build transparency mask: True where alpha == 0
+    trans_mask = [a == 0 for a in alpha_mask.tobytes()]
+
+    p_frames = []
     for f in frames:
         rgb = Image.new("RGB", f.size, TKEY)
         rgb.paste(f, mask=f.split()[3])
-        rgb_frames.append(rgb)
-
-    p_frames = []
-    for rgb in rgb_frames:
         p = rgb.quantize(palette=palette_img, dither=0)
+        # Force transparent pixels to index 0 (quantizer may mismap TKEY)
+        pix = p.load()
+        idx = 0
+        for y in range(p.height):
+            for x in range(p.width):
+                if trans_mask[idx]:
+                    pix[x, y] = 0
+                idx += 1
         p_frames.append(p)
 
-    trans_idx = 0  # TKEY is first in palette
+    trans_idx = 0
 
     p_frames[0].save(
         dst,
