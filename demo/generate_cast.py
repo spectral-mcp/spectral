@@ -15,7 +15,7 @@ import json
 import sys
 from pathlib import Path
 
-COLS = 92
+COLS = 96
 ROWS = 24
 
 # ANSI escape codes
@@ -24,6 +24,7 @@ DIM = "\033[2m"
 GREEN = "\033[32m"
 YELLOW = "\033[33m"
 CYAN = "\033[36m"
+MAGENTA = "\033[35m"
 RESET = "\033[0m"
 
 
@@ -77,18 +78,22 @@ class Cast:
         self.nl()
 
     def tool_call(self, name: str, params: str, pre: float = 0.8):
-        """Claude Code tool call indicator."""
+        """Claude Code MCP tool call — matches real Claude Code output."""
         self.wait(pre)
-        self.out(f"  {YELLOW}●{RESET} {BOLD}{name}{RESET}")
-        self.wait(0.2)
-        self.out(f" {DIM}({params}){RESET}\r\n")
+        self.out(f"  {MAGENTA}●{RESET} spectral - {name} {DIM}(MCP){RESET}({params})\r\n")
+        self.wait(0.3)
+        self.out(f"    {DIM}└ Running…{RESET}")
         self.wait(1.0)
+        # Overwrite "Running…" with result
+        self.out(f"\r    └ HTTP 200\r\n")
+        self.wait(0.3)
 
-    def response(self, *lines: str, pre: float = 0.3):
-        """Claude response lines."""
+    def response(self, first: str, *rest: str, pre: float = 0.3):
+        """Claude response lines — green dot on first line like real Claude Code."""
         self.wait(pre)
-        for l in lines:
-            self.line(f"  {l}", pause=0.025)
+        self.line(f"  {GREEN}●{RESET} {first}", pause=0.025)
+        for l in rest:
+            self.line(f"    {l}", pause=0.025)
 
     # -- serialization --------------------------------------------------------
 
@@ -228,7 +233,7 @@ def record() -> Cast:
 
     # First interaction
     c.user_prompt("What's the temperature in my living room?")
-    c.tool_call("tado_get_zone_state", "zone_id: 1")
+    c.tool_call("tado_get_zone_state", 'zone_id: "1"')
     c.response(
         f"The living room is currently at {BOLD}21.3°C{RESET} (target: 22°C).",
         "Humidity is at 45%. The heating is active.",
@@ -239,7 +244,8 @@ def record() -> Cast:
     # Second interaction
     c.user_prompt("Set it to 23 degrees")
     c.tool_call(
-        "tado_set_zone_temperature_overlay", "zone_id: 1, temperature: 23.0"
+        "tado_set_zone_temperature_overlay",
+        'zone_id: "1", temperature: 23.0',
     )
     c.response(
         "Done! I've set the living room to 23°C.",
@@ -250,7 +256,10 @@ def record() -> Cast:
 
     # Third interaction — switch to Uber, show cross-app usage
     c.user_prompt("How much would an Uber cost from SFO to downtown?")
-    c.tool_call("uber_get_price_estimate", 'start: "SFO", end: "Union Square, SF"')
+    c.tool_call(
+        "uber_get_price_estimate",
+        'start: "SFO", end: "Union Square, SF"',
+    )
     c.response(
         "Here are the estimates from SFO to Union Square:",
         "",
