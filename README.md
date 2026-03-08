@@ -7,10 +7,10 @@
 </p>
 
 <p align="center">
-  <a href="#install">Install</a>
+  <a href="#install">Install</a> ·
   <a href="#why-spectral">Why Spectral</a> ·
   <a href="#how-it-works">How it works</a> ·
-  <a href="https://romain-gilliotte.github.io/spectral/"><strong>Documentation</strong></a> ·
+  <a href="https://romain-gilliotte.github.io/spectral/"><strong>Documentation</strong></a>
 </p>
 
 Browse any website or mobile app normally. Spectral observes what you do, figures out the meaning behind each API call, and builds MCP tools that let AI agents use the same app.
