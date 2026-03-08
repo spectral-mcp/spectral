@@ -9,9 +9,9 @@ TITLE_BAR_H = 36
 BORDER = 1
 CROP = 4       # trim agg rounded corners from raw GIF
 RADIUS = 12    # top corner radius
-TITLE_BG = (88, 96, 105)    # #586069
-BORDER_BG = (88, 96, 105)
-CORNER_BG = (13, 17, 23)    # #0d1117 — GitHub dark page background
+TITLE_BG = (88, 96, 105, 255)
+BORDER_BG = (88, 96, 105, 255)
+TRANSPARENT = (0, 0, 0, 0)
 DOTS = [
     (255, 95, 87),   # red
     (254, 188, 46),  # yellow
@@ -34,8 +34,8 @@ def add_chrome(src: Path, dst: Path):
     new_w = cw + 2 * BORDER
     new_h = ch + TITLE_BAR_H + BORDER
 
-    # Build chrome template: rounded top corners, square bottom
-    chrome = Image.new("RGB", (new_w, new_h), CORNER_BG)
+    # Build chrome template in RGBA — corners are transparent
+    chrome = Image.new("RGBA", (new_w, new_h), TRANSPARENT)
     draw = ImageDraw.Draw(chrome)
     # Full window body (rounded all corners, then squared off at bottom)
     draw.rounded_rectangle([0, 0, new_w - 1, new_h - 1], radius=RADIUS, fill=BORDER_BG)
@@ -49,8 +49,11 @@ def add_chrome(src: Path, dst: Path):
         cy = DOT_Y
         draw.ellipse(
             [cx - DOT_RADIUS, cy - DOT_RADIUS, cx + DOT_RADIUS, cy + DOT_RADIUS],
-            fill=color,
+            fill=(*color, 255),
         )
+
+    # Extract alpha mask from chrome (same for every frame)
+    alpha_mask = chrome.split()[3]
 
     # Process each frame
     try:
@@ -59,19 +62,44 @@ def add_chrome(src: Path, dst: Path):
             frame = frame.crop((CROP, CROP, w - CROP, h - CROP))
             canvas = chrome.copy()
             canvas.paste(frame, (BORDER, TITLE_BAR_H))
+            # Re-apply alpha mask (paste overwrites alpha in content area, which is fine,
+            # but we need corners to stay transparent)
+            canvas.putalpha(alpha_mask)
             frames.append(canvas)
             durations.append(img.info.get("duration", 100))
             img.seek(img.tell() + 1)
     except EOFError:
         pass
 
-    frames[0].save(
+    # Convert RGBA → P with transparency
+    # Use a rare RGB color as transparency key, then quantize as RGB
+    TKEY = (1, 2, 3)
+    rgb_frames = []
+    for f in frames:
+        rgb = Image.new("RGB", f.size, TKEY)
+        rgb.paste(f, mask=f.split()[3])  # paste only opaque pixels
+        rgb_frames.append(rgb)
+
+    # Build shared palette from first frame
+    palette_img = rgb_frames[0].quantize(colors=255, method=Image.Quantize.MEDIANCUT)
+
+    p_frames = []
+    for rgb in rgb_frames:
+        p = rgb.quantize(palette=palette_img, dither=0)
+        p_frames.append(p)
+
+    # Find transparent palette index (the one mapping to TKEY)
+    trans_idx = p_frames[0].getpixel((0, 0))
+
+    p_frames[0].save(
         dst,
         save_all=True,
-        append_images=frames[1:],
+        append_images=p_frames[1:],
         duration=durations,
         loop=0,
-        optimize=False,
+        optimize=True,
+        disposal=2,
+        transparency=trans_idx,
     )
     print(f"✓ {dst} ({new_w}x{new_h}, {len(frames)} frames)")
 
