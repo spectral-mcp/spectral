@@ -220,6 +220,7 @@ def record() -> Cast:
         "Humidity is at 45%. The heating is active.",
     )
 
+    c.line()
     c.wait(3.0)
 
     # Second interaction
@@ -233,6 +234,7 @@ def record() -> Cast:
         "The heating will adjust to reach the new target.",
     )
 
+    c.line()
     c.wait(3.0)
 
     # Third interaction — switch to Uber, show cross-app usage

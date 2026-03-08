@@ -6,8 +6,10 @@ from pathlib import Path
 from PIL import Image, ImageDraw
 
 TITLE_BAR_H = 36
-BORDER = 4
-BG = (45, 51, 59)  # #2d333b — GitHub dark "overlay", visible on #0d1117 page bg
+BORDER = 1
+CROP = 4  # pixels to trim from raw GIF edges (removes agg rounded corners)
+TITLE_BG = (88, 96, 105)   # #586069 — GitHub fg.muted, clearly visible on #0d1117
+BORDER_BG = (88, 96, 105)  # same as title bar for clean look
 DOTS = [
     (255, 95, 87),   # red    #FF5F57
     (254, 188, 46),  # yellow #FEBC2E
@@ -25,15 +27,22 @@ def add_chrome(src: Path, dst: Path):
     durations: list[int] = []
 
     w, h = img.size
-    new_w = w + 2 * BORDER
-    new_h = h + TITLE_BAR_H + BORDER
+    # Cropped content dimensions
+    cw = w - 2 * CROP
+    ch = h - 2 * CROP
+    # Final dimensions
+    new_w = cw + 2 * BORDER
+    new_h = ch + TITLE_BAR_H + BORDER
 
     # Build the chrome template once
-    chrome = Image.new("RGB", (new_w, new_h), BG)
+    chrome = Image.new("RGB", (new_w, new_h), BORDER_BG)
+    # Draw title bar
     draw = ImageDraw.Draw(chrome)
+    draw.rectangle([0, 0, new_w, TITLE_BAR_H - 1], fill=TITLE_BG)
+    # Traffic light dots
     for i, color in enumerate(DOTS):
         cx = BORDER + DOT_START_X + i * DOT_SPACING
-        cy = BORDER + DOT_Y
+        cy = DOT_Y
         draw.ellipse(
             [cx - DOT_RADIUS, cy - DOT_RADIUS, cx + DOT_RADIUS, cy + DOT_RADIUS],
             fill=color,
@@ -43,6 +52,8 @@ def add_chrome(src: Path, dst: Path):
     try:
         while True:
             frame = img.convert("RGB")
+            # Crop rounded corners
+            frame = frame.crop((CROP, CROP, w - CROP, h - CROP))
             canvas = chrome.copy()
             canvas.paste(frame, (BORDER, TITLE_BAR_H))
             frames.append(canvas)
