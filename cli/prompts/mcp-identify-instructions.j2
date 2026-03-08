@@ -9,6 +9,7 @@ Reason about the **actual content** of the request — the URL, headers, and esp
 Ignore:
 - Static assets, config/init requests, analytics, tracking, translation endpoints
 - Health checks, version checks, feature flags
+- Authentication and authorization endpoints (OAuth token exchanges, login flows, session management, token refresh)
 - Anything already covered by an existing tool listed above
 
 If this trace is useful, return: {"useful": true, "name": "tool_name_snake_case", "description": "What this does in business terms"}
