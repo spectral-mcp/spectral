@@ -105,7 +105,11 @@ function onDebuggerDetach(debuggeeId, reason) {
   if (debuggeeId.tabId === captureState.captureTabId) {
     console.log('Debugger detached:', reason);
     deactivateContentScript(captureState.captureTabId);
-    resetState();
+    // Only reset state on unexpected detach (user clicked Chrome's Cancel, tab closed).
+    // When stopCapture() initiated the detach, state is already past CAPTURING.
+    if (captureState.state === State.CAPTURING) {
+      resetState();
+    }
   }
 }
 
@@ -138,11 +142,23 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
 
         case 'GET_STATUS': {
+          if (captureState.hostConnected === null) {
+            try {
+              const ping = await chrome.runtime.sendNativeMessage(
+                'com.spectral.capture_host',
+                { type: 'ping' }
+              );
+              captureState.hostConnected = !!(ping && ping.type === 'pong');
+            } catch {
+              captureState.hostConnected = false;
+            }
+          }
           sendResponse({
             state: captureState.state,
             tabId: captureState.captureTabId,
             stats: captureState.state === State.CAPTURING ? getStats() : null,
             settings: { ...captureState.settings },
+            hostConnected: captureState.hostConnected,
           });
           break;
         }

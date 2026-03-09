@@ -17,6 +17,9 @@ export const captureState = {
   captureTabId: null,
   captureStartTime: null,
 
+  // Native host connection (null = unchecked, true/false = checked)
+  hostConnected: null,
+
   // Settings (persisted across sessions via chrome.storage.local)
   settings: {
     injectTypename: true,

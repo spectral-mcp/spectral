@@ -1,10 +1,10 @@
 {
   "manifest_version": 3,
-  "name": "Spectral",
+  "name": "Spectral — API Discovery for AI Agents",
   "version": "0.1.0",
-  "description": "Capture network traffic and UI actions for Spectral",
+  "description": "Browse any app normally. Spectral figures out the meaning behind each API call and builds MCP tools for AI agents.",
   "permissions": ["debugger", "activeTab", "scripting", "nativeMessaging"],
-  "host_permissions": ["<all_urls>"],
+  "optional_host_permissions": ["http://*/*", "https://*/*"],
   "background": {
     "service_worker": "background/background.js",
     "type": "module"

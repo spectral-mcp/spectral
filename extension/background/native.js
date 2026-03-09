@@ -2,7 +2,7 @@
  * Native messaging: send capture data directly to the spectral CLI host.
  */
 
-import { captureState, State } from './state.js';
+import { captureState, State, resetState } from './state.js';
 import { uuid, now, slugify } from './utils.js';
 
 /**
@@ -114,10 +114,10 @@ export async function sendCapture() {
       payload
     );
 
-    captureState.state = State.IDLE;
+    resetState();
     return response;
   } catch (error) {
-    captureState.state = State.IDLE;
+    resetState();
     throw error;
   }
 }

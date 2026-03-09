@@ -15,6 +15,18 @@ export async function startCapture() {
     btnStart.disabled = true;
     state.lastStats = null;
 
+    // Request host permission for this tab's origin so the content script
+    // can be re-injected after full-page navigations within the same site.
+    // Must be called from the popup (user gesture context).
+    const tab = await chrome.tabs.get(state.currentTabId);
+    const origin = new URL(tab.url).origin;
+    const granted = await chrome.permissions.request({
+      origins: [origin + '/*'],
+    });
+    if (!granted) {
+      throw new Error('Host permission required for content script injection');
+    }
+
     const response = await chrome.runtime.sendMessage({
       type: 'START_CAPTURE',
       tabId: state.currentTabId,

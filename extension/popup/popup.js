@@ -6,37 +6,26 @@ import { state, showError, updateUI } from './ui.js';
 import { startCapture, stopCapture, startStatusPolling } from './capture.js';
 
 // ============================================================================
-// Host connection check
+// Connection footer
 // ============================================================================
 
-async function checkHostConnection() {
+function renderConnectionFooter(connected) {
   const connEl = document.getElementById('connection-status');
-  try {
-    const response = await chrome.runtime.sendNativeMessage(
-      'com.spectral.capture_host',
-      { type: 'ping' }
-    );
-    if (response && response.type === 'pong') {
-      state.hostConnected = true;
-      connEl.innerHTML = 'Connected to <code>spectral</code> CLI';
-      return true;
-    }
-  } catch {
-    // Host not found or errored
-  }
-  state.hostConnected = false;
-  const installCmd = `spectral extension install --extension-id ${chrome.runtime.id}`;
-  connEl.innerHTML = `<code>spectral</code> CLI not connected. Run:<br><span class="install-cmd"><code>${installCmd}</code><button class="btn-copy" title="&#128461; command">&#128461;</button></span>`;
-  connEl.classList.add('connection-error');
-  connEl.querySelector('.btn-copy').addEventListener('click', () => {
-    navigator.clipboard.writeText(installCmd).then(() => {
-      const btn = connEl.querySelector('.btn-copy');
-      btn.textContent = '\u2713';
-      setTimeout(() => { btn.innerHTML = '&#128461;'; }, 1500);
+  if (connected) {
+    connEl.innerHTML = 'Connected to <code>spectral</code> CLI';
+    connEl.classList.remove('connection-error');
+  } else {
+    const installCmd = `spectral extension install --extension-id ${chrome.runtime.id}`;
+    connEl.innerHTML = `<code>spectral</code> CLI not connected. Run:<br><span class="install-cmd"><code>${installCmd}</code><button class="btn-copy" title="&#128461; command">&#128461;</button></span>`;
+    connEl.classList.add('connection-error');
+    connEl.querySelector('.btn-copy').addEventListener('click', () => {
+      navigator.clipboard.writeText(installCmd).then(() => {
+        const btn = connEl.querySelector('.btn-copy');
+        btn.textContent = '\u2713';
+        setTimeout(() => { btn.innerHTML = '&#128461;'; }, 1500);
+      });
     });
-  });
-  document.getElementById('btn-start').disabled = true;
-  return false;
+  }
 }
 
 // ============================================================================
@@ -44,9 +33,8 @@ async function checkHostConnection() {
 // ============================================================================
 
 async function initialize() {
+  const container = document.querySelector('.container');
   try {
-    await checkHostConnection();
-
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
 
     if (!tab) {
@@ -63,6 +51,10 @@ async function initialize() {
     state.currentTabId = tab.id;
 
     const response = await chrome.runtime.sendMessage({ type: 'GET_STATUS' });
+
+    // Apply connection state before any UI render
+    state.hostConnected = response.hostConnected;
+    renderConnectionFooter(response.hostConnected);
 
     // Apply persisted settings to checkboxes
     if (response.settings) {
@@ -81,6 +73,8 @@ async function initialize() {
     }
   } catch (error) {
     showError(`Initialization error: ${error.message}`);
+  } finally {
+    container.classList.remove('hidden');
   }
 }
 
