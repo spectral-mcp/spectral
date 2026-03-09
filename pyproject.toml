@@ -3,10 +3,23 @@ requires = ["setuptools>=68.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "spectral"
+name = "spectral-mcp"
 version = "0.1.0"
 description = "Automatically discover and document web application APIs"
+license = "MIT"
+readme = "README.md"
 requires-python = ">=3.11"
+keywords = ["mcp", "api", "reverse-engineering", "openapi", "graphql"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries",
+]
 dependencies = [
     "click>=8.1",
     "pydantic>=2.0",
@@ -62,3 +75,15 @@ select = ["I"]
 [tool.ruff.lint.isort]
 combine-as-imports = true
 force-sort-within-sections = true
+
+[project.urls]
+Homepage = "https://github.com/romain-gilliotte/spectral"
+Documentation = "https://romain-gilliotte.github.io/spectral/"
+Repository = "https://github.com/romain-gilliotte/spectral"
+Issues = "https://github.com/romain-gilliotte/spectral/issues"
+
+[tool.semantic_release]
+version_toml = ["pyproject.toml:project.version"]
+branch = "main"
+commit_message = "chore(release): v{version}"
+build_command = "uv build"

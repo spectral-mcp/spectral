@@ -38,6 +38,18 @@ Most apps — web, mobile, desktop — sit on top of undocumented HTTP APIs. Spe
 ## Install
 
 ```bash
+pip install spectral-mcp
+```
+
+or with [uv](https://docs.astral.sh/uv/):
+
+```bash
+uv tool install spectral-mcp
+```
+
+Alternatively, install from source with the one-liner:
+
+```bash
 curl -LsSf https://raw.githubusercontent.com/romain-gilliotte/spectral/main/install.sh | bash
 ```
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib.metadata
 import sys
 
 import click
@@ -38,7 +39,7 @@ class _SpectralGroup(click.Group):
 
 
 @click.group(cls=_SpectralGroup)
-@click.version_option(version="0.1.0", prog_name="spectral")
+@click.version_option(version=importlib.metadata.version("spectral-mcp"), prog_name="spectral")
 @click.pass_context
 def cli(ctx: click.Context) -> None:
     """Automatically discover and document web application APIs."""

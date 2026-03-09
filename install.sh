@@ -30,14 +30,14 @@ fi
 
 # ── spectral ─────────────────────────────────────────────────────────────────
 
-REPO="git+https://github.com/romain-gilliotte/spectral.git"
+PKG="spectral-mcp"
 
 if uv tool list 2>/dev/null | grep -q '^spectral '; then
     info "Upgrading spectral…"
-    uv tool install "$REPO" --reinstall
+    uv tool install "$PKG" --upgrade
 else
     info "Installing spectral…"
-    uv tool install "$REPO"
+    uv tool install "$PKG"
 fi
 
 # ── verify ───────────────────────────────────────────────────────────────────

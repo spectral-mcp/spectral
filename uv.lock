@@ -2184,7 +2184,7 @@ wheels = [
 ]
 
 [[package]]
-name = "spectral"
+name = "spectral-mcp"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
