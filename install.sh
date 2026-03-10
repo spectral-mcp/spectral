@@ -66,6 +66,7 @@ case "$SHELL_NAME" in
             echo "$EVAL_LINE" >> "$RC"
             info "Shell completion added to $RC"
         fi
+        info "Run this to activate now:  source $RC"
         ;;
     zsh)
         RC="$HOME/.zshrc"
@@ -73,6 +74,7 @@ case "$SHELL_NAME" in
             echo "$EVAL_LINE" >> "$RC"
             info "Shell completion added to $RC"
         fi
+        info "Run this to activate now:  source $RC"
         ;;
 esac
 

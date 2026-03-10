@@ -18,6 +18,7 @@
   - `uv run ruff check` — zero lint errors (use `--fix` for auto-fixable import sorting)
   - `uv run pyright` — zero new type errors (pre-existing errors in `proxy.py`, `test_proxy.py` are known)
 - **Shell completion scripts** (`cli/completions/spectral.bash` and `spectral.zsh`) are static — they must be updated manually whenever a CLI command, subcommand, or option is added, removed, or renamed.
+- **Conventional Commits** are mandatory. Every commit message must follow the format `type(scope): description` (e.g. `fix:`, `feat:`, `chore:`, `docs:`, `refactor:`, `test:`, `ci:`). This drives python-semantic-release: `fix:` bumps patch, `feat:` bumps minor, `BREAKING CHANGE:` bumps major. Use `chore:`/`docs:`/`refactor:`/`test:`/`ci:` for changes that should not trigger a release.
 
 ## What this project is
 
