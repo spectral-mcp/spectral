@@ -46,7 +46,8 @@ def setup(send_fn: SendFn | None = None) -> None:
     # Migrate legacy api_key file → llm.json
     llm_config = storage.load_llm_config()
     if llm_config is None:
-        legacy_key = storage.load_api_key()
+        legacy_path = storage.store_root() / "api_key"
+        legacy_key = legacy_path.read_text().strip() if legacy_path.is_file() else None
         if legacy_key:
             storage.write_llm_config(api_key=legacy_key)
             llm_config = storage.load_llm_config()

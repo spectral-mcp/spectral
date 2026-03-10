@@ -263,20 +263,6 @@ def auth_script_path(app_name: str) -> Path:
     return app_dir(app_name) / "auth_acquire.py"
 
 
-def load_api_key() -> str | None:
-    """Read the stored API key from the legacy ``api_key`` file, or ``None``."""
-    path = store_root() / "api_key"
-    if not path.is_file():
-        return None
-    return path.read_text().strip() or None
-
-
-def write_api_key(key: str) -> None:
-    """Write the API key to managed storage (legacy format)."""
-    path = store_root() / "api_key"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(key.strip() + "\n")
-
 
 def load_llm_config() -> dict[str, str] | None:
     """Read ``llm.json`` from managed storage, or ``None`` if not set."""
