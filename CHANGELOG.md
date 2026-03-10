@@ -1,6 +1,19 @@
 # CHANGELOG
 
 
+## v0.1.2 (2026-03-10)
+
+### Bug Fixes
+
+- Use absolute URLs for images in README
+  ([`e9cf62f`](https://github.com/romain-gilliotte/spectral/commit/e9cf62f41562d195c6efe13e199e4e4cf43d763f))
+
+PyPI cannot resolve relative image paths — use raw.githubusercontent.com URLs so images render on
+  both GitHub and PyPI.
+
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+
+
 ## v0.1.1 (2026-03-10)
 
 ### Bug Fixes
