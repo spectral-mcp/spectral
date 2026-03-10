@@ -13,20 +13,7 @@ from cli.commands.capture.types import CaptureBundle
 from cli.formats.capture_bundle import Header
 from cli.helpers.llm._client import setup
 from cli.main import cli
-from tests.conftest import make_trace
-
-
-def _make_openai_response(text: str) -> MagicMock:
-    """Create a mock OpenAI-style ChatCompletion response."""
-    resp = MagicMock()
-    message = MagicMock()
-    message.content = text
-    message.tool_calls = None
-    choice = MagicMock()
-    choice.message = message
-    choice.finish_reason = "stop"
-    resp.choices = [choice]
-    return resp
+from tests.conftest import make_openai_response, make_trace
 
 
 def _setup_extract_llm(
@@ -39,7 +26,7 @@ def _setup_extract_llm(
     async def mock_send(**kwargs: Any) -> MagicMock:
         idx = min(call_count["n"], len(response_list) - 1)
         call_count["n"] += 1
-        return _make_openai_response(response_list[idx])
+        return make_openai_response(response_list[idx])
 
     setup(send_fn=mock_send)
 

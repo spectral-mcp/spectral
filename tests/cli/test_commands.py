@@ -15,19 +15,7 @@ from cli.commands.capture.types import CaptureBundle
 from cli.formats.capture_bundle import CaptureStats
 from cli.helpers.llm._client import setup
 from cli.main import cli
-
-
-def _make_openai_response(text: str) -> MagicMock:
-    """Create a mock OpenAI-style ChatCompletion response."""
-    resp = MagicMock()
-    message = MagicMock()
-    message.content = text
-    message.tool_calls = None
-    choice = MagicMock()
-    choice.message = message
-    choice.finish_reason = "stop"
-    resp.choices = [choice]
-    return resp
+from tests.conftest import make_openai_response
 
 
 def _setup_openapi_llm() -> None:
@@ -78,13 +66,13 @@ def _setup_openapi_llm() -> None:
         else:
             msg = str(raw)
         if "base URL" in msg and "business API" in msg:
-            return _make_openai_response(base_url_response)
+            return make_openai_response(base_url_response)
         elif "Group these observed URLs" in msg:
-            return _make_openai_response(groups_response)
+            return make_openai_response(groups_response)
         elif "single API endpoint" in msg:
-            return _make_openai_response(enrich_response)
+            return make_openai_response(enrich_response)
         else:
-            return _make_openai_response(enrich_response)
+            return make_openai_response(enrich_response)
 
     setup(send_fn=mock_send)
 
@@ -370,7 +358,7 @@ def _setup_mcp_llm() -> None:
         else:
             text = json.dumps({"useful": False})
 
-        return _make_openai_response(text)
+        return make_openai_response(text)
 
     setup(send_fn=mock_send)
 

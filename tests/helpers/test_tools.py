@@ -13,6 +13,7 @@ from cli.helpers.llm._client import setup
 from cli.helpers.llm.tools._decode_base64 import execute as execute_decode_base64
 from cli.helpers.llm.tools._decode_jwt import execute as execute_decode_jwt
 from cli.helpers.llm.tools._decode_url import execute as execute_decode_url
+from tests.conftest import make_openai_response
 
 # --- Executor unit tests (sync, no mocks) ---
 
@@ -94,19 +95,6 @@ class TestDecodeJwt:
 # --- Conversation tool-use tests (async, mocked client) ---
 
 
-def _make_openai_response(text: str) -> MagicMock:
-    """Create a mock OpenAI-style ChatCompletion response (no tool calls)."""
-    resp = MagicMock()
-    message = MagicMock()
-    message.content = text
-    message.tool_calls = None
-    choice = MagicMock()
-    choice.message = message
-    choice.finish_reason = "stop"
-    resp.choices = [choice]
-    return resp
-
-
 def _make_tool_call_response(
     tool_name: str, tool_input: dict[str, Any], tool_call_id: str = "tool_01"
 ) -> MagicMock:
@@ -136,7 +124,7 @@ class TestCallWithTools:
 
         async def mock_send(**kwargs: Any) -> MagicMock:
             call_count[0] += 1
-            return _make_openai_response('{"endpoints": []}')
+            return make_openai_response('{"endpoints": []}')
 
         setup(send_fn=mock_send)
 
@@ -152,7 +140,7 @@ class TestCallWithTools:
         """LLM calls decode_base64, gets result, then responds with text."""
         encoded = base64.b64encode(b'{"page":1}').decode()
         tool_resp = _make_tool_call_response("decode_base64", {"value": encoded})
-        final_resp = _make_openai_response(
+        final_resp = make_openai_response(
             '[{"method":"GET","pattern":"/api/data/{param}","urls":[]}]'
         )
 
@@ -179,7 +167,7 @@ class TestCallWithTools:
         tool_resp = _make_tool_call_response(
             "decode_base64", {"value": "!!!not~base64$$$"}
         )
-        final_resp = _make_openai_response("[]")
+        final_resp = make_openai_response("[]")
 
         call_count = [0]
 
@@ -222,7 +210,7 @@ class TestCallWithTools:
     async def test_unknown_tool_returns_error(self):
         """If the LLM calls a tool not in executors, return an error result."""
         tool_resp = _make_tool_call_response("nonexistent_tool", {"x": 1})
-        final_resp = _make_openai_response("done")
+        final_resp = make_openai_response("done")
 
         call_count = [0]
 

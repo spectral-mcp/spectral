@@ -18,7 +18,7 @@ from cli.formats.capture_bundle import (
     Timeline,
 )
 from cli.helpers.llm._client import setup
-from tests.conftest import make_trace
+from tests.conftest import make_openai_response, make_trace
 
 
 def _make_bundle(traces: list[Trace] | None = None, contexts: list[Context] | None = None) -> CaptureBundle:
@@ -36,22 +36,9 @@ def _make_bundle(traces: list[Trace] | None = None, contexts: list[Context] | No
     )
 
 
-def _make_openai_response(text: str) -> MagicMock:
-    """Build a mock OpenAI-style ChatCompletion response."""
-    resp = MagicMock()
-    message = MagicMock()
-    message.content = text
-    message.tool_calls = None
-    choice = MagicMock()
-    choice.message = message
-    choice.finish_reason = "stop"
-    resp.choices = [choice]
-    return resp
-
-
 def _setup_llm(response_text: str) -> None:
     async def mock_send(**kwargs: object) -> MagicMock:
-        return _make_openai_response(response_text)
+        return make_openai_response(response_text)
 
     setup(send_fn=mock_send)
 

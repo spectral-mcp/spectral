@@ -182,8 +182,3 @@ async def send(*, label: str = "", **kwargs: Any) -> Any:
                 await asyncio.sleep(wait)
 
     raise RuntimeError("unreachable")  # pragma: no cover
-
-
-# Backwards compatibility aliases
-setup_client = setup
-clear_client = clear

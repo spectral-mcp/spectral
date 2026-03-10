@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -11,6 +12,19 @@ from cli.helpers.llm._client import clear
 import cli.helpers.llm._conversation as _conv_mod
 from cli.helpers.llm._cost import reset_usage
 from cli.helpers.llm._debug import clear_debug_dir
+
+
+def make_openai_response(text: str) -> MagicMock:
+    """Create a mock OpenAI-style ChatCompletion response."""
+    resp = MagicMock()
+    message = MagicMock()
+    message.content = text
+    message.tool_calls = None
+    choice = MagicMock()
+    choice.message = message
+    choice.finish_reason = "stop"
+    resp.choices = [choice]
+    return resp
 
 
 @pytest.fixture(autouse=True)

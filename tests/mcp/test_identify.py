@@ -17,7 +17,7 @@ from cli.formats.capture_bundle import (
 )
 from cli.formats.mcp_tool import ToolDefinition, ToolRequest
 from cli.helpers.llm._client import setup
-from tests.conftest import make_trace
+from tests.conftest import make_openai_response, make_trace
 
 
 def _make_bundle(traces: list[Trace] | None = None) -> CaptureBundle:
@@ -35,22 +35,9 @@ def _make_bundle(traces: list[Trace] | None = None) -> CaptureBundle:
     )
 
 
-def _make_openai_response(text: str) -> MagicMock:
-    """Build a mock OpenAI-style ChatCompletion response."""
-    resp = MagicMock()
-    message = MagicMock()
-    message.content = text
-    message.tool_calls = None
-    choice = MagicMock()
-    choice.message = message
-    choice.finish_reason = "stop"
-    resp.choices = [choice]
-    return resp
-
-
 def _setup_llm(response_text: str) -> None:
     async def mock_send(**kwargs: object) -> MagicMock:
-        return _make_openai_response(response_text)
+        return make_openai_response(response_text)
 
     setup(send_fn=mock_send)
 
@@ -115,7 +102,7 @@ async def test_identify_no_tools_in_llm_call() -> None:
 
     async def mock_send(**kwargs: Any) -> MagicMock:
         captured_kwargs.append(dict(kwargs))
-        return _make_openai_response(json.dumps({"useful": False}))
+        return make_openai_response(json.dumps({"useful": False}))
 
     setup(send_fn=mock_send)
 
@@ -143,7 +130,7 @@ async def test_identify_shows_existing_tools() -> None:
             content = messages[0].get("content", "")
             if isinstance(content, str):
                 captured_prompt.append(content)
-        return _make_openai_response(json.dumps({"useful": False}))
+        return make_openai_response(json.dumps({"useful": False}))
 
     setup(send_fn=mock_send)
 
@@ -181,7 +168,7 @@ async def test_identify_shows_request_details_inline() -> None:
             content = messages[0].get("content", "")
             if isinstance(content, str):
                 captured_prompt.append(content)
-        return _make_openai_response(json.dumps({"useful": False}))
+        return make_openai_response(json.dumps({"useful": False}))
 
     setup(send_fn=mock_send)
 
@@ -213,7 +200,7 @@ async def test_identify_includes_timeline_in_system() -> None:
     async def mock_send(**kwargs: Any) -> MagicMock:
         if "system" in kwargs:
             captured_system.append(kwargs["system"])
-        return _make_openai_response(json.dumps({"useful": False}))
+        return make_openai_response(json.dumps({"useful": False}))
 
     setup(send_fn=mock_send)
 

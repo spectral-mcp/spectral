@@ -15,7 +15,7 @@ from cli.formats.capture_bundle import (
 )
 from cli.helpers.detect_base_url import detect_base_url
 from cli.helpers.llm._client import setup
-from tests.conftest import make_trace
+from tests.conftest import make_openai_response, make_trace
 
 
 def _make_bundle(traces: list[Any] | None = None) -> CaptureBundle:
@@ -31,19 +31,6 @@ def _make_bundle(traces: list[Any] | None = None) -> CaptureBundle:
         contexts=[],
         timeline=Timeline(),
     )
-
-
-def _make_openai_response(text: str) -> MagicMock:
-    """Create a mock OpenAI-style ChatCompletion response."""
-    resp = MagicMock()
-    message = MagicMock()
-    message.content = text
-    message.tool_calls = None
-    choice = MagicMock()
-    choice.message = message
-    choice.finish_reason = "stop"
-    resp.choices = [choice]
-    return resp
 
 
 class TestDetectBaseUrl:
@@ -73,7 +60,7 @@ class TestDetectBaseUrl:
         """detect_base_url should parse the LLM response and return the base_url string."""
 
         async def mock_send(**kwargs: Any) -> MagicMock:
-            return _make_openai_response('{"base_url": "https://www.example.com/api"}')
+            return make_openai_response('{"base_url": "https://www.example.com/api"}')
 
         setup(send_fn=mock_send)
 
@@ -89,7 +76,7 @@ class TestDetectBaseUrl:
         """Trailing slash should be stripped from the returned base URL."""
 
         async def mock_send(**kwargs: Any) -> MagicMock:
-            return _make_openai_response('{"base_url": "https://api.example.com/"}')
+            return make_openai_response('{"base_url": "https://api.example.com/"}')
 
         setup(send_fn=mock_send)
 
@@ -104,7 +91,7 @@ class TestDetectBaseUrl:
         """LLM may return just the origin without a path prefix."""
 
         async def mock_send(**kwargs: Any) -> MagicMock:
-            return _make_openai_response('{"base_url": "https://api.example.com"}')
+            return make_openai_response('{"base_url": "https://api.example.com"}')
 
         setup(send_fn=mock_send)
 
@@ -119,7 +106,7 @@ class TestDetectBaseUrl:
         """If the LLM doesn't return {base_url: ...}, raise ValueError."""
 
         async def mock_send(**kwargs: Any) -> MagicMock:
-            return _make_openai_response('{"something_else": "value"}')
+            return make_openai_response('{"something_else": "value"}')
 
         setup(send_fn=mock_send)
 
