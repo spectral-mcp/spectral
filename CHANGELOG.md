@@ -1,6 +1,20 @@
 # CHANGELOG
 
 
+## v0.1.3 (2026-03-10)
+
+### Bug Fixes
+
+- Checkout release tag in publish job
+  ([`4590615`](https://github.com/romain-gilliotte/spectral/commit/459061530adf56a4918bd577b1037f2a7121a2b3))
+
+The publish job was checking out the triggering commit instead of the commit created by
+  semantic-release, causing it to build the previous version. Checkout the tag output by
+  semantic-release instead.
+
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+
+
 ## v0.1.2 (2026-03-10)
 
 ### Bug Fixes
