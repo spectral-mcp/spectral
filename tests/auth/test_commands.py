@@ -10,7 +10,7 @@ from click.testing import CliRunner
 import pytest
 
 from cli.commands.capture.types import CaptureBundle
-from cli.helpers.llm._client import setup_client
+from cli.helpers.llm._client import setup
 from cli.main import cli
 
 _DEFAULT_SCRIPT_RESPONSE = (
@@ -36,46 +36,41 @@ _DEFAULT_SCRIPT_RESPONSE = (
 _BASE_URL_RESPONSE = '{"base_url": "https://api.example.com"}'
 
 
-def _make_text_block(text: str) -> MagicMock:
-    block = MagicMock()
-    block.type = "text"
-    block.text = text
+def _make_openai_response(text: str) -> MagicMock:
+    """Create a mock OpenAI-style ChatCompletion response."""
     resp = MagicMock()
-    resp.stop_reason = "end_turn"
-    resp.content = [block]
+    message = MagicMock()
+    message.content = text
+    message.tool_calls = None
+    choice = MagicMock()
+    choice.message = message
+    choice.finish_reason = "stop"
+    resp.choices = [choice]
     return resp
 
 
-def _make_async_create(response_text: str):
+def _make_async_send(response_text: str):
     """Create an async mock that always returns the given text."""
-    async def mock_create(**kwargs: Any) -> MagicMock:
-        return _make_text_block(response_text)
-    return mock_create
+    async def mock_send(**kwargs: Any) -> MagicMock:
+        return _make_openai_response(response_text)
+    return mock_send
 
 
 def _setup_auth_llm(script_response: str | None = None) -> None:
-    """Set up a mock LLM client for auth analysis tests.
-
-    Handles multiple LLM calls: first for base URL detection,
-    then for auth script generation.
-    """
+    """Set up a mock LLM for auth analysis tests."""
     if script_response is None:
         script_response = _DEFAULT_SCRIPT_RESPONSE
 
     call_count = {"n": 0}
     final_script = script_response
 
-    async def mock_create(**kwargs: Any) -> MagicMock:
+    async def mock_send(**kwargs: Any) -> MagicMock:
         call_count["n"] += 1
-        # First call: base URL detection
         if call_count["n"] == 1:
-            return _make_text_block(_BASE_URL_RESPONSE)
-        # Subsequent calls: auth script generation
-        return _make_text_block(final_script)
+            return _make_openai_response(_BASE_URL_RESPONSE)
+        return _make_openai_response(final_script)
 
-    mock_client = MagicMock()
-    mock_client.messages.create = mock_create
-    setup_client(mock_client)
+    setup(send_fn=mock_send)
 
 
 class TestAuthSet:
@@ -237,9 +232,7 @@ class TestAuthLoginFix:
         update_app_meta("testapp", base_url="https://api.example.com")
 
         # Set up LLM mock — base URL is cached so only the fix call happens
-        mock_client = MagicMock()
-        mock_client.messages.create = _make_async_create(_FIXED_SCRIPT_RESPONSE)
-        setup_client(mock_client)
+        setup(send_fn=_make_async_send(_FIXED_SCRIPT_RESPONSE))
 
         runner = CliRunner()
         result = runner.invoke(

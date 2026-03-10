@@ -16,7 +16,7 @@ from cli.formats.capture_bundle import (
     Timeline,
 )
 from cli.formats.mcp_tool import ToolDefinition, ToolRequest
-from cli.helpers.llm._client import setup_client
+from cli.helpers.llm._client import setup
 from tests.conftest import make_trace
 
 
@@ -35,20 +35,24 @@ def _make_bundle(traces: list[Trace] | None = None) -> CaptureBundle:
     )
 
 
+def _make_openai_response(text: str) -> MagicMock:
+    """Build a mock OpenAI-style ChatCompletion response."""
+    resp = MagicMock()
+    message = MagicMock()
+    message.content = text
+    message.tool_calls = None
+    choice = MagicMock()
+    choice.message = message
+    choice.finish_reason = "stop"
+    resp.choices = [choice]
+    return resp
+
+
 def _setup_llm(response_text: str) -> None:
-    mock_client = MagicMock()
+    async def mock_send(**kwargs: object) -> MagicMock:
+        return _make_openai_response(response_text)
 
-    async def mock_create(**kwargs: object) -> MagicMock:
-        resp = MagicMock()
-        content_block = MagicMock()
-        content_block.type = "text"
-        content_block.text = response_text
-        resp.content = [content_block]
-        resp.stop_reason = "end_turn"
-        return resp
-
-    mock_client.messages.create = mock_create
-    setup_client(mock_client)
+    setup(send_fn=mock_send)
 
 
 async def test_identify_returns_candidate_when_useful() -> None:
@@ -109,20 +113,11 @@ async def test_identify_no_tools_in_llm_call() -> None:
     """Verify that the identify step does NOT pass tools to the LLM (lightweight call)."""
     captured_kwargs: list[dict[str, Any]] = []
 
-    mock_client = MagicMock()
-
-    async def mock_create(**kwargs: Any) -> MagicMock:
+    async def mock_send(**kwargs: Any) -> MagicMock:
         captured_kwargs.append(dict(kwargs))
-        resp = MagicMock()
-        content_block = MagicMock()
-        content_block.type = "text"
-        content_block.text = json.dumps({"useful": False})
-        resp.content = [content_block]
-        resp.stop_reason = "end_turn"
-        return resp
+        return _make_openai_response(json.dumps({"useful": False}))
 
-    mock_client.messages.create = mock_create
-    setup_client(mock_client)
+    setup(send_fn=mock_send)
 
     target = make_trace("t_0001", "GET", "https://api.example.com/data", 200, 1000)
     await identify_capabilities(IdentifyInput(
@@ -142,24 +137,15 @@ async def test_identify_shows_existing_tools() -> None:
     """Verify that existing tools are mentioned in the user prompt."""
     captured_prompt: list[str] = []
 
-    mock_client = MagicMock()
-
-    async def mock_create(**kwargs: Any) -> MagicMock:
+    async def mock_send(**kwargs: Any) -> MagicMock:
         messages = cast(list[dict[str, Any]], kwargs.get("messages", []))
         if messages:
             content = messages[0].get("content", "")
             if isinstance(content, str):
                 captured_prompt.append(content)
-        resp = MagicMock()
-        content_block = MagicMock()
-        content_block.type = "text"
-        content_block.text = json.dumps({"useful": False})
-        resp.content = [content_block]
-        resp.stop_reason = "end_turn"
-        return resp
+        return _make_openai_response(json.dumps({"useful": False}))
 
-    mock_client.messages.create = mock_create
-    setup_client(mock_client)
+    setup(send_fn=mock_send)
 
     existing = [
         ToolDefinition(
@@ -189,24 +175,15 @@ async def test_identify_shows_request_details_inline() -> None:
     """Verify that target trace request details are shown inline in the prompt."""
     captured_prompt: list[str] = []
 
-    mock_client = MagicMock()
-
-    async def mock_create(**kwargs: Any) -> MagicMock:
+    async def mock_send(**kwargs: Any) -> MagicMock:
         messages = cast(list[dict[str, Any]], kwargs.get("messages", []))
         if messages:
             content = messages[0].get("content", "")
             if isinstance(content, str):
                 captured_prompt.append(content)
-        resp = MagicMock()
-        content_block = MagicMock()
-        content_block.type = "text"
-        content_block.text = json.dumps({"useful": False})
-        resp.content = [content_block]
-        resp.stop_reason = "end_turn"
-        return resp
+        return _make_openai_response(json.dumps({"useful": False}))
 
-    mock_client.messages.create = mock_create
-    setup_client(mock_client)
+    setup(send_fn=mock_send)
 
     target = make_trace(
         "t_0001", "POST", "https://api.example.com/api/search", 200, 1000,
@@ -233,21 +210,12 @@ async def test_identify_includes_timeline_in_system() -> None:
     """Verify that the timeline text is included in the system blocks, not the user prompt."""
     captured_system: list[Any] = []
 
-    mock_client = MagicMock()
-
-    async def mock_create(**kwargs: Any) -> MagicMock:
+    async def mock_send(**kwargs: Any) -> MagicMock:
         if "system" in kwargs:
             captured_system.append(kwargs["system"])
-        resp = MagicMock()
-        content_block = MagicMock()
-        content_block.type = "text"
-        content_block.text = json.dumps({"useful": False})
-        resp.content = [content_block]
-        resp.stop_reason = "end_turn"
-        return resp
+        return _make_openai_response(json.dumps({"useful": False}))
 
-    mock_client.messages.create = mock_create
-    setup_client(mock_client)
+    setup(send_fn=mock_send)
 
     timeline = (
         '\U0001f5b1 [click] "Search" on https://example.com/home\n'

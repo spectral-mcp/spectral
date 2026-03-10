@@ -13,12 +13,25 @@ import yaml
 
 from cli.commands.capture.types import CaptureBundle
 from cli.formats.capture_bundle import CaptureStats
-from cli.helpers.llm._client import setup_client
+from cli.helpers.llm._client import setup
 from cli.main import cli
 
 
+def _make_openai_response(text: str) -> MagicMock:
+    """Create a mock OpenAI-style ChatCompletion response."""
+    resp = MagicMock()
+    message = MagicMock()
+    message.content = text
+    message.tool_calls = None
+    choice = MagicMock()
+    choice.message = message
+    choice.finish_reason = "stop"
+    resp.choices = [choice]
+    return resp
+
+
 def _setup_openapi_llm() -> None:
-    """Set up a mock LLM client for OpenAPI analysis tests."""
+    """Set up a mock LLM for OpenAPI analysis tests."""
 
     groups_response = json.dumps(
         [
@@ -54,11 +67,7 @@ def _setup_openapi_llm() -> None:
 
     base_url_response = json.dumps({"base_url": "https://api.example.com"})
 
-    async def mock_create(**kwargs: object) -> MagicMock:
-        mock_response = MagicMock()
-        mock_content = MagicMock()
-        mock_content.type = "text"
-        mock_response.stop_reason = "end_turn"
+    async def mock_send(**kwargs: Any) -> MagicMock:
         messages_raw = kwargs.get("messages")
         messages = cast(list[dict[str, Any]], messages_raw if isinstance(messages_raw, list) else [])
         first_msg = messages[0] if len(messages) > 0 else {}
@@ -69,19 +78,15 @@ def _setup_openapi_llm() -> None:
         else:
             msg = str(raw)
         if "base URL" in msg and "business API" in msg:
-            mock_content.text = base_url_response
+            return _make_openai_response(base_url_response)
         elif "Group these observed URLs" in msg:
-            mock_content.text = groups_response
+            return _make_openai_response(groups_response)
         elif "single API endpoint" in msg:
-            mock_content.text = enrich_response
+            return _make_openai_response(enrich_response)
         else:
-            mock_content.text = enrich_response
-        mock_response.content = [mock_content]
-        return mock_response
+            return _make_openai_response(enrich_response)
 
-    mock_client = MagicMock()
-    mock_client.messages.create = mock_create
-    setup_client(mock_client)
+    setup(send_fn=mock_send)
 
 
 class TestAnalyzeCommand:
@@ -314,19 +319,10 @@ class TestDiscoverCommand:
 
 
 def _setup_mcp_llm() -> None:
-    """Set up a mock LLM client for MCP pipeline tests.
-
-    Handles the greedy per-trace pattern: identify per trace (no tools),
-    then build for useful ones (with tools).
-    """
+    """Set up a mock LLM for MCP pipeline tests."""
     identify_call_count = {"n": 0}
 
-    async def mock_create(**kwargs: Any) -> MagicMock:
-        resp = MagicMock()
-        content_block = MagicMock()
-        content_block.type = "text"
-        resp.stop_reason = "end_turn"
-
+    async def mock_send(**kwargs: Any) -> MagicMock:
         messages = cast(list[dict[str, Any]], kwargs.get("messages", []))
         prompt = ""
         for m in messages:
@@ -340,7 +336,6 @@ def _setup_mcp_llm() -> None:
                     prompt = "".join(b["text"] for b in blocks if b.get("type") == "text")
                     break
 
-        # Also extract system text for routing
         system_text = ""
         system_raw = kwargs.get("system")
         if isinstance(system_raw, list):
@@ -351,20 +346,19 @@ def _setup_mcp_llm() -> None:
         full_text_lower = (prompt + " " + system_text).lower()
 
         if "base url" in prompt_lower and "business api" in prompt_lower:
-            content_block.text = json.dumps({"base_url": "https://api.example.com"})
+            text = json.dumps({"base_url": "https://api.example.com"})
         elif "target trace:" in prompt_lower and "business capability" in full_text_lower:
-            # Per-trace identify: first call -> useful, rest -> not useful
             identify_call_count["n"] += 1
             if identify_call_count["n"] == 1:
-                content_block.text = json.dumps({
+                text = json.dumps({
                     "useful": True,
                     "name": "list_users",
                     "description": "List users",
                 })
             else:
-                content_block.text = json.dumps({"useful": False})
+                text = json.dumps({"useful": False})
         elif "candidate:" in prompt_lower and "tool definition" in full_text_lower:
-            content_block.text = json.dumps({
+            text = json.dumps({
                 "tool": {
                     "name": "list_users",
                     "description": "List users",
@@ -374,14 +368,11 @@ def _setup_mcp_llm() -> None:
                 "consumed_trace_ids": ["t_0001"],
             })
         else:
-            content_block.text = json.dumps({"useful": False})
+            text = json.dumps({"useful": False})
 
-        resp.content = [content_block]
-        return resp
+        return _make_openai_response(text)
 
-    mock_client = MagicMock()
-    mock_client.messages.create = mock_create
-    setup_client(mock_client)
+    setup(send_fn=mock_send)
 
 
 class TestAnalyzeMcpCommand:

@@ -18,23 +18,26 @@ NAME = "query_traces"
 _QUERY_TRACES_MAX_OUTPUT = 8000
 
 DEFINITION: dict[str, Any] = {
-    "name": NAME,
-    "description": (
-        "Run a jq expression against all traces. "
-        "Each trace is an object with fields: id, method, url, path, "
-        "status, request_headers, request_body, response_body. "
-        "The input is the full array of traces. "
-        "Use select() to filter, .field to extract, etc."
-    ),
-    "input_schema": {
-        "type": "object",
-        "properties": {
-            "expression": {
-                "type": "string",
-                "description": "A jq expression to run against the trace array.",
+    "type": "function",
+    "function": {
+        "name": NAME,
+        "description": (
+            "Run a jq expression against all traces. "
+            "Each trace is an object with fields: id, method, url, path, "
+            "status, request_headers, request_body, response_body. "
+            "The input is the full array of traces. "
+            "Use select() to filter, .field to extract, etc."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "expression": {
+                    "type": "string",
+                    "description": "A jq expression to run against the trace array.",
+                },
             },
+            "required": ["expression"],
         },
-        "required": ["expression"],
     },
 }
 

@@ -11,22 +11,25 @@ from cli.helpers.json import minified, truncate_json
 NAME = "inspect_context"
 
 DEFINITION: dict[str, Any] = {
-    "name": NAME,
-    "description": (
-        "Get full details for a UI context event: action, element "
-        "(tag, text, selector, attributes), page (url, title), "
-        "and rich page content (headings, navigation, main text, "
-        "forms, tables, alerts)."
-    ),
-    "input_schema": {
-        "type": "object",
-        "properties": {
-            "context_id": {
-                "type": "string",
-                "description": "The context ID (e.g., 'c_0001').",
+    "type": "function",
+    "function": {
+        "name": NAME,
+        "description": (
+            "Get full details for a UI context event: action, element "
+            "(tag, text, selector, attributes), page (url, title), "
+            "and rich page content (headings, navigation, main text, "
+            "forms, tables, alerts)."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "context_id": {
+                    "type": "string",
+                    "description": "The context ID (e.g., 'c_0001').",
+                },
             },
+            "required": ["context_id"],
         },
-        "required": ["context_id"],
     },
 }
 

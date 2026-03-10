@@ -10,17 +10,20 @@ from typing import Any
 NAME = "decode_base64"
 
 DEFINITION: dict[str, Any] = {
-    "name": NAME,
-    "description": "Decode a base64-encoded string (standard or URL-safe, auto-padding). Returns the decoded text (UTF-8) or a hex dump if the content is binary.",
-    "input_schema": {
-        "type": "object",
-        "properties": {
-            "value": {
-                "type": "string",
-                "description": "The base64-encoded string to decode.",
-            }
+    "type": "function",
+    "function": {
+        "name": NAME,
+        "description": "Decode a base64-encoded string (standard or URL-safe, auto-padding). Returns the decoded text (UTF-8) or a hex dump if the content is binary.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "value": {
+                    "type": "string",
+                    "description": "The base64-encoded string to decode.",
+                }
+            },
+            "required": ["value"],
         },
-        "required": ["value"],
     },
 }
 

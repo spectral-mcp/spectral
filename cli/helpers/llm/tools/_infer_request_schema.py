@@ -13,22 +13,25 @@ from cli.helpers.schema import infer_schema
 NAME = "infer_request_schema"
 
 DEFINITION: dict[str, Any] = {
-    "name": NAME,
-    "description": (
-        "Merge request bodies from the given trace IDs into an annotated JSON Schema. "
-        "Shows which fields vary (parameters) vs stay the same (fixed values) "
-        "across traces, with up to 5 example values per field."
-    ),
-    "input_schema": {
-        "type": "object",
-        "properties": {
-            "trace_ids": {
-                "type": "array",
-                "items": {"type": "string"},
-                "description": "List of trace IDs whose request bodies to merge.",
+    "type": "function",
+    "function": {
+        "name": NAME,
+        "description": (
+            "Merge request bodies from the given trace IDs into an annotated JSON Schema. "
+            "Shows which fields vary (parameters) vs stay the same (fixed values) "
+            "across traces, with up to 5 example values per field."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "trace_ids": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "List of trace IDs whose request bodies to merge.",
+                },
             },
+            "required": ["trace_ids"],
         },
-        "required": ["trace_ids"],
     },
 }
 

@@ -16,7 +16,7 @@ from cli.formats.capture_bundle import (
     Timeline,
     TimelineEvent,
 )
-from cli.helpers.llm._client import setup_client
+from cli.helpers.llm._client import setup
 from tests.conftest import make_context, make_trace
 
 
@@ -63,6 +63,19 @@ def _make_bundle() -> CaptureBundle:
     )
 
 
+def _make_openai_response(text: str) -> MagicMock:
+    """Build a mock OpenAI-style ChatCompletion response."""
+    resp = MagicMock()
+    message = MagicMock()
+    message.content = text
+    message.tool_calls = None
+    choice = MagicMock()
+    choice.message = message
+    choice.finish_reason = "stop"
+    resp.choices = [choice]
+    return resp
+
+
 def _setup_pipeline_llm() -> None:
     """Set up a mock LLM that handles the greedy pipeline calls.
 
@@ -74,13 +87,8 @@ def _setup_pipeline_llm() -> None:
       4. identify t_0003 -> useful (get_account)
       5. build get_account (with tools) -> returns tool + consumed [t_0003]
     """
-    mock_client = MagicMock()
 
-    async def mock_create(**kwargs: Any) -> MagicMock:
-        resp = MagicMock()
-        content_block = MagicMock()
-        content_block.type = "text"
-        resp.stop_reason = "end_turn"
+    async def mock_send(**kwargs: Any) -> MagicMock:
         messages = cast(list[dict[str, Any]], kwargs.get("messages", []))
 
         # Extract the original prompt (first user message content)
@@ -107,15 +115,15 @@ def _setup_pipeline_llm() -> None:
         full_text_lower = (prompt + " " + system_text).lower()
 
         if "base url" in prompt_lower and "business api" in prompt_lower:
-            content_block.text = json.dumps({"base_url": "https://api.example.com"})
+            text = json.dumps({"base_url": "https://api.example.com"})
         elif "target trace: t_0001" in prompt_lower:
-            content_block.text = json.dumps({
+            text = json.dumps({
                 "useful": True,
                 "name": "search_routes",
                 "description": "Search for train routes",
             })
         elif "candidate: search_routes" in prompt_lower:
-            content_block.text = json.dumps({
+            text = json.dumps({
                 "tool": {
                     "name": "search_routes",
                     "description": "Search for train routes",
@@ -140,13 +148,13 @@ def _setup_pipeline_llm() -> None:
                 "consumed_trace_ids": ["t_0001", "t_0002"],
             })
         elif "target trace: t_0003" in prompt_lower:
-            content_block.text = json.dumps({
+            text = json.dumps({
                 "useful": True,
                 "name": "get_account",
                 "description": "Get account information",
             })
         elif "candidate: get_account" in prompt_lower:
-            content_block.text = json.dumps({
+            text = json.dumps({
                 "tool": {
                     "name": "get_account",
                     "description": "Get account info",
@@ -156,15 +164,13 @@ def _setup_pipeline_llm() -> None:
                 "consumed_trace_ids": ["t_0003"],
             })
         elif "business capability" in full_text_lower:
-            content_block.text = json.dumps({"useful": False})
+            text = json.dumps({"useful": False})
         else:
-            content_block.text = json.dumps({"useful": False})
+            text = json.dumps({"useful": False})
 
-        resp.content = [content_block]
-        return resp
+        return _make_openai_response(text)
 
-    mock_client.messages.create = mock_create
-    setup_client(mock_client)
+    setup(send_fn=mock_send)
 
 
 async def test_pipeline_extracts_tools() -> None:

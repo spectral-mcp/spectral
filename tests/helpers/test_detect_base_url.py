@@ -14,7 +14,7 @@ from cli.formats.capture_bundle import (
     Timeline,
 )
 from cli.helpers.detect_base_url import detect_base_url
-from cli.helpers.llm._client import setup_client
+from cli.helpers.llm._client import setup
 from tests.conftest import make_trace
 
 
@@ -33,14 +33,16 @@ def _make_bundle(traces: list[Any] | None = None) -> CaptureBundle:
     )
 
 
-def _make_text_response(text: str) -> MagicMock:
-    """Create a mock response with a single text block and end_turn stop."""
-    block = MagicMock()
-    block.type = "text"
-    block.text = text
+def _make_openai_response(text: str) -> MagicMock:
+    """Create a mock OpenAI-style ChatCompletion response."""
     resp = MagicMock()
-    resp.stop_reason = "end_turn"
-    resp.content = [block]
+    message = MagicMock()
+    message.content = text
+    message.tool_calls = None
+    choice = MagicMock()
+    choice.message = message
+    choice.finish_reason = "stop"
+    resp.choices = [choice]
     return resp
 
 
@@ -70,12 +72,10 @@ class TestDetectBaseUrl:
     async def test_returns_base_url(self):
         """detect_base_url should parse the LLM response and return the base_url string."""
 
-        async def mock_create(**kwargs: Any) -> MagicMock:
-            return _make_text_response('{"base_url": "https://www.example.com/api"}')
+        async def mock_send(**kwargs: Any) -> MagicMock:
+            return _make_openai_response('{"base_url": "https://www.example.com/api"}')
 
-        client = MagicMock()
-        client.messages.create = mock_create
-        setup_client(client)
+        setup(send_fn=mock_send)
 
         bundle = _make_bundle([
             make_trace("t_0001", "GET", "https://www.example.com/api/users", 200, 1000),
@@ -88,12 +88,10 @@ class TestDetectBaseUrl:
     async def test_strips_trailing_slash(self):
         """Trailing slash should be stripped from the returned base URL."""
 
-        async def mock_create(**kwargs: Any) -> MagicMock:
-            return _make_text_response('{"base_url": "https://api.example.com/"}')
+        async def mock_send(**kwargs: Any) -> MagicMock:
+            return _make_openai_response('{"base_url": "https://api.example.com/"}')
 
-        client = MagicMock()
-        client.messages.create = mock_create
-        setup_client(client)
+        setup(send_fn=mock_send)
 
         bundle = _make_bundle([
             make_trace("t_0001", "GET", "https://api.example.com/v1", 200, 1000),
@@ -105,12 +103,10 @@ class TestDetectBaseUrl:
     async def test_origin_only(self):
         """LLM may return just the origin without a path prefix."""
 
-        async def mock_create(**kwargs: Any) -> MagicMock:
-            return _make_text_response('{"base_url": "https://api.example.com"}')
+        async def mock_send(**kwargs: Any) -> MagicMock:
+            return _make_openai_response('{"base_url": "https://api.example.com"}')
 
-        client = MagicMock()
-        client.messages.create = mock_create
-        setup_client(client)
+        setup(send_fn=mock_send)
 
         bundle = _make_bundle([
             make_trace("t_0001", "GET", "https://api.example.com/users", 200, 1000),
@@ -122,12 +118,10 @@ class TestDetectBaseUrl:
     async def test_invalid_response_raises(self):
         """If the LLM doesn't return {base_url: ...}, raise ValueError."""
 
-        async def mock_create(**kwargs: Any) -> MagicMock:
-            return _make_text_response('{"something_else": "value"}')
+        async def mock_send(**kwargs: Any) -> MagicMock:
+            return _make_openai_response('{"something_else": "value"}')
 
-        client = MagicMock()
-        client.messages.create = mock_create
-        setup_client(client)
+        setup(send_fn=mock_send)
 
         bundle = _make_bundle([
             make_trace("t_0001", "GET", "https://example.com/api", 200, 1000),

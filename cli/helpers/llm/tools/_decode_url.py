@@ -9,17 +9,20 @@ from urllib.parse import unquote
 NAME = "decode_url"
 
 DEFINITION: dict[str, Any] = {
-    "name": NAME,
-    "description": "URL-decode a percent-encoded string (e.g. %20 → space, %2F → /).",
-    "input_schema": {
-        "type": "object",
-        "properties": {
-            "value": {
-                "type": "string",
-                "description": "The percent-encoded string to decode.",
-            }
+    "type": "function",
+    "function": {
+        "name": NAME,
+        "description": "URL-decode a percent-encoded string (e.g. %20 → space, %2F → /).",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "value": {
+                    "type": "string",
+                    "description": "The percent-encoded string to decode.",
+                }
+            },
+            "required": ["value"],
         },
-        "required": ["value"],
     },
 }
 

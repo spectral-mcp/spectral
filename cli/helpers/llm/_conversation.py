@@ -10,12 +10,12 @@ from pydantic import BaseModel, ValidationError
 
 from cli.commands.capture.types import CaptureBundle
 from cli.helpers.json import extract_json
-from cli.helpers.llm._client import send
+from cli.helpers.llm._client import get_stored_model, send
 from cli.helpers.llm._debug import DebugSession
 from cli.helpers.llm._utils import extract_text
 from cli.helpers.llm.tools import execute_tool, make_tools
 
-DEFAULT_MODEL = "claude-sonnet-4-5-20250929"
+DEFAULT_MODEL = "anthropic/claude-sonnet-4-5-20250929"
 
 _model_override: str | None = None
 
@@ -26,6 +26,16 @@ def set_model(model: str) -> None:
     """Override the default model for all new conversations."""
     global _model_override
     _model_override = model
+
+
+def _resolve_model(explicit: str) -> str:
+    """Resolve the effective model: override > stored > explicit default."""
+    if _model_override:
+        return _model_override
+    stored = get_stored_model()
+    if stored:
+        return stored
+    return explicit
 
 
 class Conversation:
@@ -50,7 +60,7 @@ class Conversation:
         label: str = "",
     ) -> None:
         self._system_blocks = self._build_system_blocks(system)
-        self._model = _model_override or model
+        self._model = _resolve_model(model)
         self._max_tokens = max_tokens
         self._max_iterations = max_iterations
         self._label = label
@@ -86,7 +96,7 @@ class Conversation:
                 messages=self._messages,
                 **create_kwargs,
             )
-            text = extract_text(response.content)
+            text = extract_text(response)
             self._dbg.add_assistant(text)
             self._check_truncation(response)
 
@@ -149,13 +159,14 @@ class Conversation:
             {"type": "text", "text": "\n\n".join(system[1:]), "cache_control": eph},
         ]
 
-    def _check_truncation(self, response: Any) -> None:
+    @staticmethod
+    def _check_truncation(response: Any) -> None:
         """Raise if the response was truncated due to max_tokens."""
-        if getattr(response, "stop_reason", None) == "max_tokens":
-            tag = f" ({self._label})" if self._label else ""
+        choice = response.choices[0]
+        if getattr(choice, "finish_reason", None) == "length":
             raise ValueError(
-                f"LLM response truncated{tag} (max_tokens={self._max_tokens}). "
-                f"The prompt or expected output is too large."
+                "LLM response truncated (max_tokens). "
+                "The prompt or expected output is too large."
             )
 
     @staticmethod
@@ -205,31 +216,51 @@ class Conversation:
                 **create_kwargs,
             )
 
-            if response.stop_reason == "max_tokens":
-                self._dbg.add_assistant(extract_text(response.content) + "\n[TRUNCATED]")
+            choice = response.choices[0]
+            finish_reason = choice.finish_reason
+            message = choice.message
+
+            if finish_reason == "length":
+                self._dbg.add_assistant(extract_text(response) + "\n[TRUNCATED]")
                 raise ValueError(
                     f"LLM response truncated ({self._label}, max_tokens={self._max_tokens}). "
                     f"The prompt or expected output is too large."
                 )
 
-            if response.stop_reason != "tool_use":
-                text = extract_text(response.content)
+            tool_calls = getattr(message, "tool_calls", None)
+            if not tool_calls:
+                text = extract_text(response)
                 self._dbg.add_assistant(text)
                 return text
 
-            self._messages.append({"role": "assistant", "content": response.content})
+            # Append the assistant message with tool_calls
+            assistant_msg: dict[str, Any] = {"role": "assistant", "content": message.content}
+            if tool_calls:
+                assistant_msg["tool_calls"] = [
+                    {
+                        "id": tc.id,
+                        "type": "function",
+                        "function": {
+                            "name": tc.function.name,
+                            "arguments": tc.function.arguments,
+                        },
+                    }
+                    for tc in tool_calls
+                ]
+            self._messages.append(assistant_msg)
+
             tool_results: list[dict[str, Any]] = []
-            for block in response.content:
-                if getattr(block, "type", None) == "text" and block.text.strip():
-                    self._dbg.add_tool_text(block.text)
-                if getattr(block, "type", None) != "tool_use":
-                    continue
-                tool_result, result_str, is_error = execute_tool(block, self._executors)
+            for tc in tool_calls:
+                tool_result, result_str, is_error = execute_tool(tc, self._executors)
                 tool_results.append(tool_result)
                 self._dbg.add_tool_use(
-                    name=block.name, input=block.input, result=result_str, error=is_error,
+                    name=tc.function.name,
+                    input=json.loads(tc.function.arguments),
+                    result=result_str,
+                    error=is_error,
                 )
 
+            # Strip cache_control from prior user messages
             for msg in self._messages:
                 if msg.get("role") != "user":
                     continue
@@ -239,10 +270,20 @@ class Conversation:
                 for blk in cast(list[dict[str, Any]], content):
                     blk.pop("cache_control", None)
 
-            if tool_results:
-                tool_results[-1] = {**tool_results[-1], "cache_control": self._CACHE_EPHEMERAL}
-
-            self._messages.append({"role": "user", "content": tool_results})
+            # Add tool results as individual tool messages
+            tool_msgs: list[dict[str, Any]] = []
+            for i, tr in enumerate(tool_results):
+                msg_dict: dict[str, Any] = {
+                    "role": "tool",
+                    "tool_call_id": tr["tool_call_id"],
+                    "content": tr["content"],
+                }
+                if tr.get("is_error"):
+                    msg_dict["is_error"] = True
+                if i == len(tool_results) - 1:
+                    msg_dict["cache_control"] = self._CACHE_EPHEMERAL
+                tool_msgs.append(msg_dict)
+            self._messages.extend(tool_msgs)
 
             self._dbg.flush_tool_round()
 

@@ -25,40 +25,38 @@ class _SampleModel(BaseModel):
     name: str | None = None
 
 
-def _make_text_block(text: str) -> MagicMock:
-    """Build a mock content block with type='text'."""
-    block = MagicMock()
-    block.type = "text"
-    block.text = text
-    return block
-
-
 def _make_mock_response(
     text: str = "hello",
-    stop_reason: str = "end_turn",
-    input_tokens: int = 100,
-    output_tokens: int = 50,
+    finish_reason: str = "stop",
+    prompt_tokens: int = 100,
+    completion_tokens: int = 50,
+    tool_calls: list[Any] | None = None,
 ) -> MagicMock:
-    """Build a mock API response containing a single text block."""
+    """Build a mock OpenAI-style ChatCompletion response."""
     resp = MagicMock()
-    resp.content = [_make_text_block(text)]
-    resp.stop_reason = stop_reason
-    resp.usage.input_tokens = input_tokens
-    resp.usage.output_tokens = output_tokens
+    message = MagicMock()
+    message.content = text
+    message.tool_calls = tool_calls
+    choice = MagicMock()
+    choice.message = message
+    choice.finish_reason = finish_reason
+    resp.choices = [choice]
+    resp.usage.prompt_tokens = prompt_tokens
+    resp.usage.completion_tokens = completion_tokens
+    resp.usage.cache_read_input_tokens = 0
+    resp.usage.cache_creation_input_tokens = 0
     return resp
 
 
-def _make_mock_client(response: Any = None) -> MagicMock:
-    """Build a mock client whose messages.create returns *response*."""
-    client = MagicMock()
+def _make_send_fn(response: Any = None) -> AsyncMock:
+    """Build a mock send function returning *response*."""
     mock_response = response or _make_mock_response()
-    client.messages.create = AsyncMock(return_value=mock_response)
-    return client
+    return AsyncMock(return_value=mock_response)
 
 
 def _make_rate_limit_error(retry_after: str | None = None) -> Exception:
-    """Build a fake anthropic.RateLimitError with optional retry-after header."""
-    import anthropic
+    """Build a fake litellm.RateLimitError with optional retry-after header."""
+    import litellm
 
     resp = MagicMock()
     if retry_after is not None:
@@ -67,19 +65,21 @@ def _make_rate_limit_error(retry_after: str | None = None) -> Exception:
         resp.headers = {}
     resp.status_code = 429
     resp.json.return_value = {"error": {"message": "rate limited", "type": "rate_limit_error"}}
-    return anthropic.RateLimitError(
+    resp.text = "rate limited"
+    return litellm.RateLimitError(  # pyright: ignore[reportPrivateImportUsage]
         message="rate limited",
+        llm_provider="test",
+        model="test-model",
         response=resp,
-        body={"error": {"message": "rate limited", "type": "rate_limit_error"}},
     )
 
 
-def _setup(client: Any = None, response: Any = None) -> MagicMock:
-    """Setup a mock client via setup_client. Returns the mock client."""
-    if client is None:
-        client = _make_mock_client(response)
-    _client_mod.setup_client(client)
-    return client
+def _setup(send_fn: Any = None, response: Any = None) -> AsyncMock:
+    """Setup a mock send_fn via setup(). Returns the mock send_fn."""
+    if send_fn is None:
+        send_fn = _make_send_fn(response)
+    _client_mod.setup(send_fn=send_fn)
+    return send_fn
 
 
 class TestSetModel:
@@ -112,27 +112,27 @@ class TestInitDebug:
 class TestConversationAskText:
     @pytest.mark.asyncio
     async def test_returns_text(self):
-        client = _setup(response=_make_mock_response("the answer"))
+        send_fn = _setup(response=_make_mock_response("the answer"))
         conv = llm.Conversation()
         result = await conv.ask_text("what is 1+1?")
         assert result == "the answer"
-        client.messages.create.assert_awaited_once()
+        send_fn.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_uses_model(self):
         llm.set_model("claude-test-123")
-        client = _setup(response=_make_mock_response("ok"))
+        send_fn = _setup(response=_make_mock_response("ok"))
         conv = llm.Conversation()
         await conv.ask_text("hello")
-        call_kwargs = client.messages.create.call_args.kwargs
+        call_kwargs = send_fn.call_args.kwargs
         assert call_kwargs["model"] == "claude-test-123"
 
     @pytest.mark.asyncio
     async def test_system_string(self):
-        client = _setup(response=_make_mock_response("ok"))
+        send_fn = _setup(response=_make_mock_response("ok"))
         conv = llm.Conversation(system="You are a helpful assistant.")
         await conv.ask_text("hello")
-        call_kwargs = client.messages.create.call_args.kwargs
+        call_kwargs = send_fn.call_args.kwargs
         assert "system" in call_kwargs
         blocks = call_kwargs["system"]
         assert len(blocks) == 1
@@ -142,10 +142,10 @@ class TestConversationAskText:
 
     @pytest.mark.asyncio
     async def test_system_list(self):
-        client = _setup(response=_make_mock_response("ok"))
+        send_fn = _setup(response=_make_mock_response("ok"))
         conv = llm.Conversation(system=["block1", "block2"])
         await conv.ask_text("hello")
-        call_kwargs = client.messages.create.call_args.kwargs
+        call_kwargs = send_fn.call_args.kwargs
         blocks = call_kwargs["system"]
         assert len(blocks) == 2
         assert blocks[0]["text"] == "block1"
@@ -154,15 +154,15 @@ class TestConversationAskText:
 
     @pytest.mark.asyncio
     async def test_no_system_omits_kwarg(self):
-        client = _setup(response=_make_mock_response("ok"))
+        send_fn = _setup(response=_make_mock_response("ok"))
         conv = llm.Conversation()
         await conv.ask_text("hello")
-        call_kwargs = client.messages.create.call_args.kwargs
+        call_kwargs = send_fn.call_args.kwargs
         assert "system" not in call_kwargs
 
     @pytest.mark.asyncio
     async def test_detects_truncation(self):
-        _setup(response=_make_mock_response("partial...", stop_reason="max_tokens"))
+        _setup(response=_make_mock_response("partial...", finish_reason="length"))
         conv = llm.Conversation(max_tokens=100, label="test_trunc")
         with pytest.raises(ValueError, match="LLM response truncated"):
             await conv.ask_text("hello")
@@ -190,23 +190,21 @@ class TestConversationAskJson:
     async def test_invalid_then_valid_retries(self):
         bad_resp = _make_mock_response("not json at all")
         good_resp = _make_mock_response('{"useful": true, "name": "retry_ok"}')
-        client = MagicMock()
-        client.messages.create = AsyncMock(side_effect=[bad_resp, good_resp])
-        _setup(client=client)
+        send_fn = AsyncMock(side_effect=[bad_resp, good_resp])
+        _setup(send_fn=send_fn)
 
         conv = llm.Conversation()
         result = await conv.ask_json("test", _SampleModel)
         assert isinstance(result, _SampleModel)
         assert result.name == "retry_ok"
-        assert client.messages.create.await_count == 2
+        assert send_fn.await_count == 2
 
     @pytest.mark.asyncio
     async def test_both_invalid_raises(self):
         bad1 = _make_mock_response("nope")
         bad2 = _make_mock_response("still nope")
-        client = MagicMock()
-        client.messages.create = AsyncMock(side_effect=[bad1, bad2])
-        _setup(client=client)
+        send_fn = AsyncMock(side_effect=[bad1, bad2])
+        _setup(send_fn=send_fn)
 
         conv = llm.Conversation()
         with pytest.raises((ValueError, Exception)):
@@ -216,9 +214,8 @@ class TestConversationAskJson:
     async def test_validation_error_retries(self):
         bad_resp = _make_mock_response('{"useful": "not_a_bool"}')
         good_resp = _make_mock_response('{"useful": true}')
-        client = MagicMock()
-        client.messages.create = AsyncMock(side_effect=[bad_resp, good_resp])
-        _setup(client=client)
+        send_fn = AsyncMock(side_effect=[bad_resp, good_resp])
+        _setup(send_fn=send_fn)
 
         conv = llm.Conversation()
         result = await conv.ask_json("test", _SampleModel)
@@ -226,10 +223,10 @@ class TestConversationAskJson:
 
     @pytest.mark.asyncio
     async def test_prompt_includes_json_instruction(self):
-        client = _setup(response=_make_mock_response('{"useful": true}'))
+        send_fn = _setup(response=_make_mock_response('{"useful": true}'))
         conv = llm.Conversation()
         await conv.ask_json("my prompt", _SampleModel)
-        call_kwargs = client.messages.create.call_args.kwargs
+        call_kwargs = send_fn.call_args.kwargs
         prompt_text = call_kwargs["messages"][0]["content"]
         assert "IMPORTANT: Respond with a single minified JSON value" in prompt_text
         assert "my prompt" in prompt_text
@@ -239,30 +236,28 @@ class TestSend:
     @pytest.mark.asyncio
     async def test_success_no_retry(self):
         expected = _make_mock_response()
-        client = _setup(response=expected)
+        send_fn = _setup(response=expected)
         result = await _client_mod.send(model="m", max_tokens=10, messages=[])
         assert result is expected
-        client.messages.create.assert_awaited_once()
+        send_fn.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_rate_limit_with_retry_after(self):
         expected = _make_mock_response()
         error = _make_rate_limit_error(retry_after="0.01")
-        client = MagicMock()
-        client.messages.create = AsyncMock(side_effect=[error, expected])
-        _setup(client=client)
+        send_fn = AsyncMock(side_effect=[error, expected])
+        _setup(send_fn=send_fn)
 
         result = await _client_mod.send(model="m", max_tokens=10, messages=[])
         assert result is expected
-        assert client.messages.create.await_count == 2
+        assert send_fn.await_count == 2
 
     @pytest.mark.asyncio
     async def test_rate_limit_fallback_exponential(self):
         expected = _make_mock_response()
         error = _make_rate_limit_error(retry_after=None)
-        client = MagicMock()
-        client.messages.create = AsyncMock(side_effect=[error, expected])
-        _setup(client=client)
+        send_fn = AsyncMock(side_effect=[error, expected])
+        _setup(send_fn=send_fn)
 
         original_backoff = _client_mod.FALLBACK_BACKOFF
         _client_mod.FALLBACK_BACKOFF = 0.01
@@ -274,28 +269,26 @@ class TestSend:
 
     @pytest.mark.asyncio
     async def test_retries_exhausted_reraises(self):
-        import anthropic
+        import litellm
 
         error = _make_rate_limit_error(retry_after="0.01")
-        client = MagicMock()
-        client.messages.create = AsyncMock(
+        send_fn = AsyncMock(
             side_effect=[error] * (_client_mod.MAX_RETRIES + 1)
         )
-        _setup(client=client)
+        _setup(send_fn=send_fn)
 
-        with pytest.raises(anthropic.RateLimitError):
+        with pytest.raises(litellm.RateLimitError):  # pyright: ignore[reportPrivateImportUsage]
             await _client_mod.send(model="m", max_tokens=10, messages=[])
-        assert client.messages.create.await_count == _client_mod.MAX_RETRIES + 1
+        assert send_fn.await_count == _client_mod.MAX_RETRIES + 1
 
     @pytest.mark.asyncio
     async def test_non_rate_limit_no_retry(self):
-        client = MagicMock()
-        client.messages.create = AsyncMock(side_effect=ValueError("boom"))
-        _setup(client=client)
+        send_fn = AsyncMock(side_effect=ValueError("boom"))
+        _setup(send_fn=send_fn)
 
         with pytest.raises(ValueError, match="boom"):
             await _client_mod.send(model="m", max_tokens=10, messages=[])
-        client.messages.create.assert_awaited_once()
+        send_fn.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_semaphore_limits_concurrency(self):
@@ -303,17 +296,15 @@ class TestSend:
         concurrent_count = 0
         peak_concurrent = 0
 
-        async def slow_create(**kwargs: Any) -> MagicMock:
+        async def slow_send(**kwargs: Any) -> MagicMock:
             nonlocal concurrent_count, peak_concurrent
             concurrent_count += 1
             peak_concurrent = max(peak_concurrent, concurrent_count)
             await asyncio.sleep(0.05)
             concurrent_count -= 1
-            return MagicMock()
+            return _make_mock_response()
 
-        client = MagicMock()
-        client.messages.create = slow_create
-        _setup(client=client)
+        _setup(send_fn=slow_send)
 
         # Set a custom semaphore with max_concurrent=2
         _client_mod._semaphore = asyncio.Semaphore(max_concurrent)
@@ -325,11 +316,7 @@ class TestSend:
         assert peak_concurrent <= max_concurrent
 
     @pytest.mark.asyncio
-    async def test_not_initialized_raises(self):
-        # clear_client() is called by the fixture, so _client is None.
-        # get_client() will try to lazily init — but with our dummy key,
-        # it would create a real client. Instead we verify send() works
-        # when properly initialized.
+    async def test_setup_works(self):
         _setup(response=_make_mock_response())
         result = await _client_mod.send(model="m", max_tokens=10, messages=[])
         assert result is not None
@@ -359,7 +346,7 @@ class TestConversationDebug:
 class TestPrintUsageSummary:
     @pytest.mark.asyncio
     async def test_prints_after_calls(self):
-        resp = _make_mock_response("a", input_tokens=1000, output_tokens=500)
+        resp = _make_mock_response("a", prompt_tokens=1000, completion_tokens=500)
         resp.usage.cache_read_input_tokens = 0
         resp.usage.cache_creation_input_tokens = 0
         _setup(response=resp)

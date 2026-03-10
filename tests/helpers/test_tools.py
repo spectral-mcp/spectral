@@ -9,7 +9,7 @@ from unittest.mock import MagicMock
 import pytest
 
 import cli.helpers.llm as llm
-from cli.helpers.llm._client import setup_client
+from cli.helpers.llm._client import setup
 from cli.helpers.llm.tools._decode_base64 import execute as execute_decode_base64
 from cli.helpers.llm.tools._decode_jwt import execute as execute_decode_jwt
 from cli.helpers.llm.tools._decode_url import execute as execute_decode_url
@@ -94,29 +94,37 @@ class TestDecodeJwt:
 # --- Conversation tool-use tests (async, mocked client) ---
 
 
-def _make_text_response(text: str) -> MagicMock:
-    """Create a mock response with a single text block and end_turn stop."""
-    block = MagicMock()
-    block.type = "text"
-    block.text = text
+def _make_openai_response(text: str) -> MagicMock:
+    """Create a mock OpenAI-style ChatCompletion response (no tool calls)."""
     resp = MagicMock()
-    resp.stop_reason = "end_turn"
-    resp.content = [block]
+    message = MagicMock()
+    message.content = text
+    message.tool_calls = None
+    choice = MagicMock()
+    choice.message = message
+    choice.finish_reason = "stop"
+    resp.choices = [choice]
     return resp
 
 
-def _make_tool_use_response(
-    tool_name: str, tool_input: dict[str, Any], tool_use_id: str = "tool_01"
+def _make_tool_call_response(
+    tool_name: str, tool_input: dict[str, Any], tool_call_id: str = "tool_01"
 ) -> MagicMock:
-    """Create a mock response with a tool_use block."""
-    block = MagicMock()
-    block.type = "tool_use"
-    block.name = tool_name
-    block.input = tool_input
-    block.id = tool_use_id
+    """Create a mock OpenAI-style response with a tool_call."""
+    import json as _json
+
     resp = MagicMock()
-    resp.stop_reason = "tool_use"
-    resp.content = [block]
+    tc = MagicMock()
+    tc.id = tool_call_id
+    tc.function.name = tool_name
+    tc.function.arguments = _json.dumps(tool_input)
+    message = MagicMock()
+    message.content = None
+    message.tool_calls = [tc]
+    choice = MagicMock()
+    choice.message = message
+    choice.finish_reason = "tool_calls"
+    resp.choices = [choice]
     return resp
 
 
@@ -126,13 +134,11 @@ class TestCallWithTools:
         """When the LLM responds without tool_use, return text directly."""
         call_count = [0]
 
-        async def mock_create(**kwargs: Any) -> MagicMock:
+        async def mock_send(**kwargs: Any) -> MagicMock:
             call_count[0] += 1
-            return _make_text_response('{"endpoints": []}')
+            return _make_openai_response('{"endpoints": []}')
 
-        client = MagicMock()
-        client.messages.create = mock_create
-        setup_client(client)
+        setup(send_fn=mock_send)
 
         conv = llm.Conversation(
             tool_names=["decode_base64", "decode_url", "decode_jwt"],
@@ -145,22 +151,20 @@ class TestCallWithTools:
     async def test_one_tool_round_then_response(self):
         """LLM calls decode_base64, gets result, then responds with text."""
         encoded = base64.b64encode(b'{"page":1}').decode()
-        tool_resp = _make_tool_use_response("decode_base64", {"value": encoded})
-        final_resp = _make_text_response(
+        tool_resp = _make_tool_call_response("decode_base64", {"value": encoded})
+        final_resp = _make_openai_response(
             '[{"method":"GET","pattern":"/api/data/{param}","urls":[]}]'
         )
 
         call_count = [0]
 
-        async def mock_create(**kwargs: Any) -> MagicMock:
+        async def mock_send(**kwargs: Any) -> MagicMock:
             call_count[0] += 1
             if call_count[0] == 1:
                 return tool_resp
             return final_resp
 
-        client = MagicMock()
-        client.messages.create = mock_create
-        setup_client(client)
+        setup(send_fn=mock_send)
 
         conv = llm.Conversation(
             tool_names=["decode_base64", "decode_url", "decode_jwt"],
@@ -172,27 +176,24 @@ class TestCallWithTools:
     @pytest.mark.asyncio
     async def test_executor_error_returned_as_is_error(self):
         """When an executor raises, the error is sent back with is_error=True."""
-        tool_resp = _make_tool_use_response(
+        tool_resp = _make_tool_call_response(
             "decode_base64", {"value": "!!!not~base64$$$"}
         )
-        final_resp = _make_text_response("[]")
+        final_resp = _make_openai_response("[]")
 
         call_count = [0]
 
-        async def mock_create(**kwargs: Any) -> MagicMock:
+        async def mock_send(**kwargs: Any) -> MagicMock:
             call_count[0] += 1
             if call_count[0] == 1:
                 return tool_resp
-            # Verify the tool_result has is_error
+            # Verify the tool_result has is_error — now tool results are individual messages
             messages = kwargs["messages"]
-            last_user_msg = messages[-1]
-            tool_results = last_user_msg["content"]
-            assert any(tr.get("is_error") for tr in tool_results)
+            tool_msgs = [m for m in messages if m.get("role") == "tool"]
+            assert any(m.get("is_error") for m in tool_msgs)
             return final_resp
 
-        client = MagicMock()
-        client.messages.create = mock_create
-        setup_client(client)
+        setup(send_fn=mock_send)
 
         conv = llm.Conversation(
             tool_names=["decode_base64", "decode_url", "decode_jwt"],
@@ -203,14 +204,12 @@ class TestCallWithTools:
     @pytest.mark.asyncio
     async def test_max_iterations_raises(self):
         """If the LLM keeps calling tools beyond max_iterations, raise ValueError."""
-        tool_resp = _make_tool_use_response("decode_url", {"value": "%20"})
+        tool_resp = _make_tool_call_response("decode_url", {"value": "%20"})
 
-        async def mock_create(**kwargs: Any) -> MagicMock:
+        async def mock_send(**kwargs: Any) -> MagicMock:
             return tool_resp
 
-        client = MagicMock()
-        client.messages.create = mock_create
-        setup_client(client)
+        setup(send_fn=mock_send)
 
         conv = llm.Conversation(
             tool_names=["decode_base64", "decode_url", "decode_jwt"],
@@ -222,24 +221,22 @@ class TestCallWithTools:
     @pytest.mark.asyncio
     async def test_unknown_tool_returns_error(self):
         """If the LLM calls a tool not in executors, return an error result."""
-        tool_resp = _make_tool_use_response("nonexistent_tool", {"x": 1})
-        final_resp = _make_text_response("done")
+        tool_resp = _make_tool_call_response("nonexistent_tool", {"x": 1})
+        final_resp = _make_openai_response("done")
 
         call_count = [0]
 
-        async def mock_create(**kwargs: Any) -> MagicMock:
+        async def mock_send(**kwargs: Any) -> MagicMock:
             call_count[0] += 1
             if call_count[0] == 1:
                 return tool_resp
             messages = kwargs["messages"]
-            tool_results = messages[-1]["content"]
-            assert any("Unknown tool" in tr.get("content", "") for tr in tool_results)
-            assert any(tr.get("is_error") for tr in tool_results)
+            tool_msgs = [m for m in messages if m.get("role") == "tool"]
+            assert any("Unknown tool" in m.get("content", "") for m in tool_msgs)
+            assert any(m.get("is_error") for m in tool_msgs)
             return final_resp
 
-        client = MagicMock()
-        client.messages.create = mock_create
-        setup_client(client)
+        setup(send_fn=mock_send)
 
         conv = llm.Conversation(
             tool_names=["decode_base64", "decode_url", "decode_jwt"],

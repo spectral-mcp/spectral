@@ -264,7 +264,7 @@ def auth_script_path(app_name: str) -> Path:
 
 
 def load_api_key() -> str | None:
-    """Read the stored Anthropic API key, or ``None`` if not set."""
+    """Read the stored API key from the legacy ``api_key`` file, or ``None``."""
     path = store_root() / "api_key"
     if not path.is_file():
         return None
@@ -272,10 +272,46 @@ def load_api_key() -> str | None:
 
 
 def write_api_key(key: str) -> None:
-    """Write the Anthropic API key to managed storage."""
+    """Write the API key to managed storage (legacy format)."""
     path = store_root() / "api_key"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(key.strip() + "\n")
+
+
+def load_llm_config() -> dict[str, str] | None:
+    """Read ``llm.json`` from managed storage, or ``None`` if not set."""
+    import json as _json
+
+    path = store_root() / "llm.json"
+    if not path.is_file():
+        return None
+    try:
+        return _json.loads(path.read_text())  # type: ignore[no-any-return]
+    except (ValueError, OSError):
+        return None
+
+
+def write_llm_config(
+    *,
+    api_key: str | None = None,
+    model: str | None = None,
+) -> None:
+    """Write ``llm.json`` to managed storage (merge with existing)."""
+    import json as _json
+
+    path = store_root() / "llm.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    existing: dict[str, str] = {}
+    if path.is_file():
+        try:
+            existing = _json.loads(path.read_text())
+        except (ValueError, OSError):
+            pass
+    if api_key is not None:
+        existing["api_key"] = api_key
+    if model is not None:
+        existing["model"] = model
+    path.write_text(_json.dumps(existing, indent=2) + "\n")
 
 
 def load_app_meta(app_name: str) -> AppMeta:

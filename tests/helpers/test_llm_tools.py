@@ -254,7 +254,7 @@ class TestMakeTools:
             bundle=bundle,
         )
 
-        tool_names = {t["name"] for t in tools}
+        tool_names = {t["function"]["name"] for t in tools}
         assert "inspect_request" in tool_names
         assert "inspect_trace" in tool_names
         assert "infer_request_schema" in tool_names
@@ -279,7 +279,7 @@ class TestMakeTools:
             bundle=bundle,
         )
 
-        tool_names = {t["name"] for t in tools}
+        tool_names = {t["function"]["name"] for t in tools}
         assert "inspect_context" in tool_names
         assert set(tool_names) == set(executors.keys())
 

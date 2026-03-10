@@ -13,21 +13,24 @@ from cli.helpers.json import minified, truncate_json
 NAME = "inspect_trace"
 
 DEFINITION: dict[str, Any] = {
-    "name": NAME,
-    "description": (
-        "Get the full request and response details for a specific trace, "
-        "including headers and decoded body content (JSON or text). "
-        "Use this to examine login endpoints, token responses, OTP flows, etc."
-    ),
-    "input_schema": {
-        "type": "object",
-        "properties": {
-            "trace_id": {
-                "type": "string",
-                "description": "The trace ID (e.g., 't_0001').",
+    "type": "function",
+    "function": {
+        "name": NAME,
+        "description": (
+            "Get the full request and response details for a specific trace, "
+            "including headers and decoded body content (JSON or text). "
+            "Use this to examine login endpoints, token responses, OTP flows, etc."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "trace_id": {
+                    "type": "string",
+                    "description": "The trace ID (e.g., 't_0001').",
+                },
             },
+            "required": ["trace_id"],
         },
-        "required": ["trace_id"],
     },
 }
 

@@ -11,39 +11,37 @@ import pytest
 
 from cli.commands.capture.types import CaptureBundle
 from cli.formats.capture_bundle import Header
-from cli.helpers.llm._client import setup_client
+from cli.helpers.llm._client import setup
 from cli.main import cli
 from tests.conftest import make_trace
 
 
-def _make_text_block(text: str) -> MagicMock:
-    block = MagicMock()
-    block.type = "text"
-    block.text = text
+def _make_openai_response(text: str) -> MagicMock:
+    """Create a mock OpenAI-style ChatCompletion response."""
     resp = MagicMock()
-    resp.stop_reason = "end_turn"
-    resp.content = [block]
+    message = MagicMock()
+    message.content = text
+    message.tool_calls = None
+    choice = MagicMock()
+    choice.message = message
+    choice.finish_reason = "stop"
+    resp.choices = [choice]
     return resp
 
 
 def _setup_extract_llm(
     *responses: str,
 ) -> None:
-    """Set up a mock LLM client that returns given responses in order.
-
-    First response is for base_url detection (if needed), rest for auth header identification.
-    """
+    """Set up a mock LLM that returns given responses in order."""
     call_count = {"n": 0}
     response_list = list(responses)
 
-    async def mock_create(**kwargs: Any) -> MagicMock:
+    async def mock_send(**kwargs: Any) -> MagicMock:
         idx = min(call_count["n"], len(response_list) - 1)
         call_count["n"] += 1
-        return _make_text_block(response_list[idx])
+        return _make_openai_response(response_list[idx])
 
-    mock_client = MagicMock()
-    mock_client.messages.create = mock_create
-    setup_client(mock_client)
+    setup(send_fn=mock_send)
 
 
 class TestExtractAuthorizationHeader:

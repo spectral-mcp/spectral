@@ -2,7 +2,7 @@
 
 Provides a byte-identical first system block (base URL + session timeline)
 that can be shared across auth, MCP identify, and MCP build_tool steps.
-Anthropic caches on exact prefix match, so identical first blocks = cache hit.
+LLMs cache on exact prefix match, so identical first blocks = cache hit.
 """
 
 from __future__ import annotations

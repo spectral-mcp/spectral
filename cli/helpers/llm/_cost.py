@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
+import litellm
+
 from cli.helpers.console import console
 
 _total_input_tokens: int = 0
@@ -12,37 +14,13 @@ _total_cache_read_tokens: int = 0
 _total_cache_creation_tokens: int = 0
 _total_cost: float = 0.0
 
-# Per-million-token pricing: (input_$/M, output_$/M)
-_MODEL_PRICING: dict[str, tuple[float, float]] = {
-    "claude-sonnet-4-5-20250929": (3.0, 15.0),
-    "claude-sonnet-4-20250514": (3.0, 15.0),
-    "claude-haiku-3-5-20241022": (0.80, 4.0),
-}
 
-
-def estimate_cost(
-    model: str,
-    input_tokens: int,
-    output_tokens: int,
-    cache_read_tokens: int = 0,
-    cache_creation_tokens: int = 0,
-) -> float | None:
-    """Return estimated USD cost, or ``None`` if model pricing is unknown.
-
-    Cache pricing follows Anthropic rates:
-    - cache reads cost 10% of the input rate
-    - cache writes cost 125% of the input rate
-    """
-    pricing = _MODEL_PRICING.get(model)
-    if pricing is None:
+def estimate_cost(response: Any) -> float | None:
+    """Return estimated USD cost using LiteLLM's pricing database, or ``None``."""
+    try:
+        return float(litellm.completion_cost(completion_response=response))
+    except Exception:
         return None
-    inp_rate, out_rate = pricing
-    return (
-        input_tokens * inp_rate
-        + cache_read_tokens * inp_rate * 0.1
-        + cache_creation_tokens * inp_rate * 1.25
-        + output_tokens * out_rate
-    ) / 1_000_000
 
 
 def get_usage() -> tuple[int, int]:
@@ -64,8 +42,8 @@ def record_usage(response: Any, label: str, model: str) -> None:
     if usage is None:
         return
     try:
-        inp = int(getattr(usage, "input_tokens", 0))
-        out = int(getattr(usage, "output_tokens", 0))
+        inp = int(getattr(usage, "prompt_tokens", 0) or 0)
+        out = int(getattr(usage, "completion_tokens", 0) or 0)
     except (TypeError, ValueError):
         return
     _total_input_tokens += inp
@@ -76,7 +54,7 @@ def record_usage(response: Any, label: str, model: str) -> None:
     _total_cache_read_tokens += cache_read
     _total_cache_creation_tokens += cache_create
 
-    call_cost = estimate_cost(model, inp, out, cache_read, cache_create)
+    call_cost = estimate_cost(response)
     if call_cost is not None:
         _total_cost += call_cost
 

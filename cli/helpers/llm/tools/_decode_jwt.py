@@ -12,17 +12,20 @@ from cli.helpers.json import minified
 NAME = "decode_jwt"
 
 DEFINITION: dict[str, Any] = {
-    "name": NAME,
-    "description": "Decode a JWT token (without signature verification). Returns the decoded header and payload as JSON.",
-    "input_schema": {
-        "type": "object",
-        "properties": {
-            "token": {
-                "type": "string",
-                "description": "The JWT token string (header.payload.signature).",
-            }
+    "type": "function",
+    "function": {
+        "name": NAME,
+        "description": "Decode a JWT token (without signature verification). Returns the decoded header and payload as JSON.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "token": {
+                    "type": "string",
+                    "description": "The JWT token string (header.payload.signature).",
+                }
+            },
+            "required": ["token"],
         },
-        "required": ["token"],
     },
 }
 

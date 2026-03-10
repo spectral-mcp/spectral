@@ -2,13 +2,14 @@
 
 Each tool module in this package exposes:
 - ``NAME: str`` — tool name
-- ``DEFINITION: dict`` — tool schema
+- ``DEFINITION: dict`` — tool schema (OpenAI function format)
 - ``make_executor(*, traces, contexts) -> Callable`` — returns the executor closure
 """
 
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
+import json
 from types import ModuleType
 from typing import Any
 
@@ -37,25 +38,31 @@ _REGISTRY: dict[str, ModuleType] = {
 
 
 def execute_tool(
-    block: Any,
+    tool_call: Any,
     executors: dict[str, Callable[[dict[str, Any]], str]],
 ) -> tuple[dict[str, Any], str, bool]:
-    """Execute a single tool_use block, returning ``(tool_result, result_str, is_error)``."""
-    executor = executors.get(block.name)
+    """Execute a single tool call, returning ``(tool_result, result_str, is_error)``.
+
+    *tool_call* is an OpenAI-style tool_call object with ``.id``,
+    ``.function.name``, and ``.function.arguments`` (JSON string).
+    """
+    name = tool_call.function.name
+    arguments = json.loads(tool_call.function.arguments)
+
+    executor = executors.get(name)
     if executor is None:
-        result_str = f"Unknown tool: {block.name}"
+        result_str = f"Unknown tool: {name}"
         is_error = True
     else:
         try:
-            result_str = executor(block.input)
+            result_str = executor(arguments)
             is_error = False
         except Exception as exc:
             result_str = f"Error: {exc}"
             is_error = True
 
     tool_result: dict[str, Any] = {
-        "type": "tool_result",
-        "tool_use_id": block.id,
+        "tool_call_id": tool_call.id,
         "content": result_str,
     }
     if is_error:
