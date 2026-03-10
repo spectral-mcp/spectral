@@ -92,7 +92,7 @@ class TestListTools:
 
 
 class TestCallTool:
-    @patch("cli.commands.mcp.server.http_requests.request")
+    @patch("requests.request")
     async def test_call_tool_success(
         self,
         mock_request: MagicMock,
@@ -138,7 +138,7 @@ class TestCallTool:
         assert "error" in result.lower()
         assert "base_url" in result
 
-    @patch("cli.commands.mcp.server.http_requests.request")
+    @patch("requests.request")
     async def test_call_tool_with_auth(
         self,
         mock_request: MagicMock,
@@ -180,7 +180,7 @@ class TestCallTool:
         headers = call_kwargs.kwargs["headers"]
         assert headers["Authorization"] == "Bearer tok123"
 
-    @patch("cli.commands.mcp.server.http_requests.request")
+    @patch("requests.request")
     async def test_call_tool_http_error(
         self,
         mock_request: MagicMock,
@@ -221,7 +221,7 @@ class TestCallTool:
         assert "error" in parsed
         assert "spectral auth login" in parsed["error"]
 
-    @patch("cli.commands.mcp.server.http_requests.request")
+    @patch("requests.request")
     async def test_call_tool_no_auth_skips_auth(
         self,
         mock_request: MagicMock,
@@ -311,7 +311,7 @@ class TestApplyDefaults:
 
 
 class TestCallToolWithDefaults:
-    @patch("cli.commands.mcp.server.http_requests.request")
+    @patch("requests.request")
     async def test_call_tool_applies_defaults(
         self,
         mock_request: MagicMock,

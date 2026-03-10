@@ -6,7 +6,6 @@ import asyncio
 import os
 from typing import Any
 
-import anthropic
 import click
 
 from cli.helpers.console import console
@@ -51,6 +50,8 @@ def setup_client(client: Any = None) -> None:
             )
         storage.write_api_key(key)
 
+    import anthropic
+
     _client = anthropic.AsyncAnthropic(api_key=key)
 
 
@@ -88,6 +89,8 @@ def _parse_retry_after(exc: Exception) -> float | None:
 
 async def send(*, label: str = "", **kwargs: Any) -> Any:
     """Call ``client.messages.create`` with semaphore gating and rate-limit retry."""
+    import anthropic
+
     from cli.helpers.llm._cost import record_usage
 
     semaphore = _get_semaphore()

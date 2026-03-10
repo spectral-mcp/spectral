@@ -6,11 +6,6 @@ import json
 from typing import Any
 
 import click
-import jsonschema
-from mcp import types
-from mcp.server import Server
-from mcp.server.stdio import stdio_server
-import requests as http_requests
 
 from cli.commands.mcp.request import build_request
 from cli.formats.mcp_tool import ToolDefinition
@@ -32,8 +27,10 @@ def _build_registry() -> None:
             _registry[mcp_name] = (app_name, tool)
 
 
-def _make_mcp_tool(mcp_name: str, tool: ToolDefinition) -> types.Tool:
+def _make_mcp_tool(mcp_name: str, tool: ToolDefinition) -> Any:
     """Convert a ToolDefinition to an MCP Tool."""
+    from mcp import types
+
     return types.Tool(
         name=mcp_name,
         description=tool.description,
@@ -45,6 +42,8 @@ async def _handle_call(
     app_name: str, tool: ToolDefinition, arguments: dict[str, Any]
 ) -> str:
     """Execute a tool call: build request, inject auth, make HTTP call."""
+    import requests
+
     meta = load_app_meta(app_name)
     base_url = meta.base_url
     if not base_url:
@@ -56,23 +55,29 @@ async def _handle_call(
         try:
             auth_headers = get_auth_headers(app_name)
         except AuthError:
-            return json.dumps({
-                "error": (
-                    f"Not authenticated. "
-                    f"Run 'spectral auth login {app_name}' in a terminal to log in, "
-                    f"then retry."
-                )
-            })
+            return json.dumps(
+                {
+                    "error": (
+                        f"Not authenticated. "
+                        f"Run 'spectral auth login {app_name}' in a terminal to log in, "
+                        f"then retry."
+                    )
+                }
+            )
 
     method, url, headers, body = build_request(tool, base_url, arguments, auth_headers)
 
     try:
-        resp = http_requests.request(
+        resp = requests.request(
             method=method,
             url=url,
             headers=headers,
-            json=body if body is not None and tool.request.content_type == "application/json" else None,
-            data=body if body is not None and tool.request.content_type != "application/json" else None,
+            json=body
+            if body is not None and tool.request.content_type == "application/json"
+            else None,
+            data=body
+            if body is not None and tool.request.content_type != "application/json"
+            else None,
             timeout=30,
         )
     except Exception as exc:
@@ -90,9 +95,7 @@ async def _handle_call(
     return "\n\n".join(result_parts)
 
 
-def apply_defaults(
-    arguments: dict[str, Any], schema: dict[str, Any]
-) -> dict[str, Any]:
+def apply_defaults(arguments: dict[str, Any], schema: dict[str, Any]) -> dict[str, Any]:
     """Insert default values for optional parameters absent from *arguments*."""
     properties = schema.get("properties", {})
     result = dict(arguments)
@@ -129,8 +132,12 @@ def coerce_arguments(
     return result
 
 
-def create_server() -> Server:
+def create_server() -> Any:
     """Create and configure the MCP server."""
+    import jsonschema
+    from mcp import types
+    from mcp.server import Server
+
     server = Server("spectral")
 
     @server.list_tools()
@@ -154,7 +161,9 @@ def create_server() -> Server:
         try:
             jsonschema.validate(args, schema)
         except jsonschema.ValidationError as exc:
-            return [types.TextContent(type="text", text=f"Invalid arguments: {exc.message}")]
+            return [
+                types.TextContent(type="text", text=f"Invalid arguments: {exc.message}")
+            ]
 
         args = apply_defaults(args, schema)
         result = await _handle_call(app_name, tool, args)
@@ -166,6 +175,8 @@ def create_server() -> Server:
 
 async def run_server() -> None:
     """Start the MCP server on stdio."""
+    from mcp.server.stdio import stdio_server
+
     server = create_server()
     options = server.create_initialization_options()
     async with stdio_server() as (read_stream, write_stream):
