@@ -16,7 +16,7 @@ _total_cost: float = 0.0
 _MODEL_PRICING: dict[str, tuple[float, float]] = {
     "claude-sonnet-4-5-20250929": (3.0, 15.0),
     "claude-sonnet-4-20250514": (3.0, 15.0),
-    "claude-haiku-3-5-20241022": (0.80, 4.0),
+    "claude-haiku-4-5-20251001": (1.0, 5.0),
 }
 
 
