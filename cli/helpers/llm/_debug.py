@@ -57,6 +57,7 @@ class DebugSession:
         from pydantic_ai.messages import (
             ModelRequest,
             ModelResponse,
+            SystemPromptPart,
             TextPart,
             ToolCallPart,
             ToolReturnPart,
@@ -76,7 +77,9 @@ class DebugSession:
         for msg in new:
             if isinstance(msg, ModelRequest):
                 for part in msg.parts:
-                    if isinstance(part, UserPromptPart):
+                    if isinstance(part, SystemPromptPart):
+                        self._append(f"=== SYSTEM ===\n{part.content}\n")
+                    elif isinstance(part, UserPromptPart):
                         text = reformat_json_lines(str(part.content))
                         self._append(f"=== PROMPT ===\n{text}\n")
 
