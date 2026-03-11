@@ -177,15 +177,3 @@ async def test_pipeline_extracts_tools() -> None:
     assert len(result.tools) >= 1
     tool_names = {t.name for t in result.tools}
     assert "search_routes" in tool_names
-
-
-async def test_pipeline_progress_callback() -> None:
-    _setup_pipeline_llm()
-    bundle = _make_bundle()
-    messages: list[str] = []
-
-    await build_mcp_tools(bundle, "testapp", on_progress=messages.append)
-
-    assert any("base url" in m.lower() for m in messages)
-    assert any("tool" in m.lower() for m in messages)
-    assert any("evaluating" in m.lower() for m in messages)

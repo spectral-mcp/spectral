@@ -2,9 +2,14 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import click
 
 from cli.helpers.console import console
+
+if TYPE_CHECKING:
+    from cli.commands.capture.types import CaptureBundle
 
 
 @click.command()
@@ -44,32 +49,8 @@ def analyze(app_name: str, output: str, model: str, debug: bool, skip_enrich: bo
     llm.init_debug(debug=debug)
     llm.set_model(model)
 
-    def on_progress(msg: str) -> None:
-        console.print(f"  {msg}")
-
-    from cli.commands.graphql.analyze import graphql_analyze
-    from cli.helpers.correlator import correlate
-    from cli.helpers.detect_base_url import detect_base_url
-
-    async def _run() -> str:
-        base_url = await detect_base_url(bundle, app_name)
-        on_progress(f"API base URL: {base_url}")
-        gql_traces = [t for t in bundle.traces if t.meta.request.url.startswith(base_url)]
-        on_progress(f"Kept {len(gql_traces)}/{len(bundle.traces)} traces under {base_url}")
-
-        correlations = correlate(bundle)
-
-        sdl = await graphql_analyze(
-            gql_traces,
-            app_name=(bundle.manifest.app.name + " API" if bundle.manifest.app.name else "Discovered API"),
-            correlations=correlations,
-            on_progress=on_progress,
-            skip_enrich=skip_enrich,
-        )
-        return sdl
-
     console.print(f"[bold]Analyzing with LLM ({model})...[/bold]")
-    sdl = asyncio.run(_run())
+    sdl = asyncio.run(_run_graphql(bundle, app_name, skip_enrich))
 
     output_base = Path(output)
     output_base = output_base.parent / output_base.stem
@@ -83,3 +64,26 @@ def analyze(app_name: str, output: str, model: str, debug: bool, skip_enrich: bo
 
     if not sdl.strip():
         console.print("[yellow]No GraphQL traces found in the capture bundle.[/yellow]")
+
+
+async def _run_graphql(
+    bundle: CaptureBundle, app_name: str, skip_enrich: bool
+) -> str:
+    from cli.commands.graphql.analyze import graphql_analyze
+    from cli.helpers.correlator import correlate
+    from cli.helpers.detect_base_url import detect_base_url
+
+    base_url = await detect_base_url(bundle, app_name)
+    console.print(f"  API base URL: {base_url}")
+    gql_traces = [t for t in bundle.traces if t.meta.request.url.startswith(base_url)]
+    console.print(f"  Kept {len(gql_traces)}/{len(bundle.traces)} traces under {base_url}")
+
+    correlations = correlate(bundle)
+
+    sdl = await graphql_analyze(
+        gql_traces,
+        app_name=(bundle.manifest.app.name + " API" if bundle.manifest.app.name else "Discovered API"),
+        correlations=correlations,
+        skip_enrich=skip_enrich,
+    )
+    return sdl

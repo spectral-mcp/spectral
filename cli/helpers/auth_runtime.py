@@ -87,6 +87,15 @@ def acquire_auth(app_name: str) -> TokenState:
 captured_script_output: list[str] = []
 
 
+def _capture_debug(*args: Any, **kwargs: Any) -> None:
+    import io as _io
+
+    buf = _io.StringIO()
+    print(*args, file=buf, **kwargs)  # noqa: T201
+    text = buf.getvalue()
+    captured_script_output.append(text)
+
+
 def load_auth_module(app_name: str) -> ModuleType:
     """Load auth_acquire.py as a module, injecting prompt utilities."""
     script = auth_script_path(app_name)
@@ -104,15 +113,6 @@ def load_auth_module(app_name: str) -> ModuleType:
 
     # Inject debug() for LLM troubleshooting (captured, shown on next fix attempt)
     captured_script_output.clear()
-
-    def _capture_debug(*args: Any, **kwargs: Any) -> None:
-        import io as _io
-
-        buf = _io.StringIO()
-        print(*args, file=buf, **kwargs)  # noqa: T201
-        text = buf.getvalue()
-        captured_script_output.append(text)
-
     mod.debug = _capture_debug  # type: ignore[attr-defined]
 
     code = compile(source, str(script), "exec")

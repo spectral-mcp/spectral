@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import click
 
 from cli.helpers.console import console
+
+if TYPE_CHECKING:
+    from cli.commands.capture.types import CaptureBundle
 
 
 @click.command()
@@ -48,34 +51,8 @@ def analyze(app_name: str, output: str, model: str, debug: bool, skip_enrich: bo
     llm.init_debug(debug=debug)
     llm.set_model(model)
 
-    def on_progress(msg: str) -> None:
-        console.print(f"  {msg}")
-
-    from cli.commands.openapi.analyze import rest_analyze
-    from cli.helpers.correlator import correlate
-    from cli.helpers.detect_base_url import detect_base_url
-
-    async def _run() -> dict[str, Any]:
-        base_url = await detect_base_url(bundle, app_name)
-        on_progress(f"API base URL: {base_url}")
-        rest_traces = [t for t in bundle.traces if t.meta.request.url.startswith(base_url)]
-        on_progress(f"Kept {len(rest_traces)}/{len(bundle.traces)} traces under {base_url}")
-
-        correlations = correlate(bundle)
-
-        openapi_dict = await rest_analyze(
-            rest_traces,
-            base_url=base_url,
-            app_name=(bundle.manifest.app.name + " API" if bundle.manifest.app.name else "Discovered API"),
-            source_filename=app_name,
-            correlations=correlations,
-            on_progress=on_progress,
-            skip_enrich=skip_enrich,
-        )
-        return openapi_dict
-
     console.print(f"[bold]Analyzing with LLM ({model})...[/bold]")
-    openapi_dict = asyncio.run(_run())
+    openapi_dict = asyncio.run(_run_openapi(bundle, app_name, skip_enrich))
 
     output_base = Path(output)
     output_base = output_base.parent / output_base.stem
@@ -91,3 +68,28 @@ def analyze(app_name: str, output: str, model: str, debug: bool, skip_enrich: bo
     console.print(f"[green]OpenAPI 3.1 spec written to {out_path}[/green]")
     endpoint_count = len(openapi_dict.get("paths", {}))
     console.print(f"  Found {endpoint_count} REST paths")
+
+
+async def _run_openapi(
+    bundle: CaptureBundle, app_name: str, skip_enrich: bool
+) -> dict[str, Any]:
+    from cli.commands.openapi.analyze import rest_analyze
+    from cli.helpers.correlator import correlate
+    from cli.helpers.detect_base_url import detect_base_url
+
+    base_url = await detect_base_url(bundle, app_name)
+    console.print(f"  API base URL: {base_url}")
+    rest_traces = [t for t in bundle.traces if t.meta.request.url.startswith(base_url)]
+    console.print(f"  Kept {len(rest_traces)}/{len(bundle.traces)} traces under {base_url}")
+
+    correlations = correlate(bundle)
+
+    openapi_dict = await rest_analyze(
+        rest_traces,
+        base_url=base_url,
+        app_name=(bundle.manifest.app.name + " API" if bundle.manifest.app.name else "Discovered API"),
+        source_filename=app_name,
+        correlations=correlations,
+        skip_enrich=skip_enrich,
+    )
+    return openapi_dict

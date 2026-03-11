@@ -11,6 +11,7 @@ from cli.commands.graphql.analyze.types import (
     GraphQLSchemaData,
     TypeEnrichmentResponse,
     TypeRecord,
+    TypeRegistry,
 )
 from cli.helpers.console import console
 from cli.helpers.correlator import Correlation
@@ -53,45 +54,55 @@ async def enrich_graphql(
     # Enrich enums too
     enums_to_enrich = [e for e in registry.enums.values() if e.values]
 
-    async def _enrich_type(type_rec: TypeRecord) -> None:
-        summary = _build_type_summary(type_rec)
-        prompt = render(
-            "graphql-enrich-type.j2",
-            app_name=app_name,
-            summary=summary,
-        )
-
-        try:
-            conv = llm.Conversation(max_tokens=1024, label=f"enrich_gql_{type_rec.name}")
-            result = await conv.ask_json(prompt, TypeEnrichmentResponse)
-            _apply_type_enrichment(type_rec, result)
-        except Exception as exc:
-            console.print(
-                f"  [red]GraphQL enrichment failed for {type_rec.name}: "
-                f"{type(exc).__name__}[/red]"
-            )
-
-    async def _enrich_enum(enum_name: str, enum_values: set[str]) -> None:
-        values = sorted(enum_values)
-        prompt = render(
-            "graphql-enrich-enum.j2",
-            app_name=app_name,
-            enum_name=enum_name,
-            values=values,
-        )
-
-        try:
-            conv = llm.Conversation(max_tokens=256, label=f"enrich_gql_enum_{enum_name}")
-            result = await conv.ask_json(prompt, EnumEnrichmentResponse)
-            registry.enums[enum_name].description = result.description
-        except Exception:
-            pass
-
-    tasks: list[Any] = [_enrich_type(t) for t in types_to_enrich]
-    tasks.extend(_enrich_enum(e.name, e.values) for e in enums_to_enrich)
+    tasks: list[Any] = [_enrich_type(t, app_name) for t in types_to_enrich]
+    tasks.extend(
+        _enrich_enum(e.name, e.values, app_name, registry)
+        for e in enums_to_enrich
+    )
     await asyncio.gather(*tasks)
 
     return schema_data
+
+
+async def _enrich_type(type_rec: TypeRecord, app_name: str) -> None:
+    summary = _build_type_summary(type_rec)
+    prompt = render(
+        "graphql-enrich-type.j2",
+        app_name=app_name,
+        summary=summary,
+    )
+
+    try:
+        conv = llm.Conversation(max_tokens=1024, label=f"enrich_gql_{type_rec.name}")
+        result = await conv.ask_json(prompt, TypeEnrichmentResponse)
+        _apply_type_enrichment(type_rec, result)
+    except Exception as exc:
+        console.print(
+            f"  [red]GraphQL enrichment failed for {type_rec.name}: "
+            f"{type(exc).__name__}[/red]"
+        )
+
+
+async def _enrich_enum(
+    enum_name: str,
+    enum_values: set[str],
+    app_name: str,
+    registry: TypeRegistry,
+) -> None:
+    values = sorted(enum_values)
+    prompt = render(
+        "graphql-enrich-enum.j2",
+        app_name=app_name,
+        enum_name=enum_name,
+        values=values,
+    )
+
+    try:
+        conv = llm.Conversation(max_tokens=256, label=f"enrich_gql_enum_{enum_name}")
+        result = await conv.ask_json(prompt, EnumEnrichmentResponse)
+        registry.enums[enum_name].description = result.description
+    except Exception:
+        pass
 
 
 def _build_type_summary(type_rec: TypeRecord) -> dict[str, Any]:

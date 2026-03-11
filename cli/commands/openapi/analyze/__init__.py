@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from typing import Any
 
 from cli.commands.capture.types import Trace
@@ -21,6 +20,7 @@ from cli.commands.openapi.analyze.types import (
     EnrichmentContext,
     SpecComponents,
 )
+from cli.helpers.console import console
 from cli.helpers.correlator import Correlation
 from cli.helpers.detect_base_url import MethodUrlPair
 
@@ -32,11 +32,10 @@ async def rest_analyze(
     source_filename: str,
     correlations: list[Correlation],
     skip_enrich: bool,
-    on_progress: Callable[[str], None],
 ) -> dict[str, Any]:
     """Run the full REST analysis pipeline and return an OpenAPI 3.1 dict."""
     # Phase A: Mechanical extraction (includes map resolution via analyze_schema)
-    endpoints, _ = await _rest_extract(traces, base_url, on_progress)
+    endpoints, _ = await _rest_extract(traces, base_url)
 
     # Phase B: Enrichment (optional)
     enriched: list[EndpointSpec] | None = None
@@ -72,10 +71,9 @@ async def rest_analyze(
 async def _rest_extract(
     rest_traces: list[Trace],
     base_url: str,
-    on_progress: Callable[[str], None],
 ) -> tuple[list[EndpointSpec], list[EndpointGroup]]:
     """Run REST extraction pipeline up to (but not including) enrichment."""
-    on_progress("Grouping URLs into endpoints (LLM)...")
+    console.print("  Grouping URLs into endpoints (LLM)...")
     filtered_pairs = [
         MethodUrlPair(t.meta.request.method.upper(), t.meta.request.url)
         for t in rest_traces
@@ -84,7 +82,7 @@ async def _rest_extract(
 
     endpoint_groups = await strip_prefix(endpoint_groups, base_url)
 
-    on_progress(f"Extracting {len(endpoint_groups)} endpoints...")
+    console.print(f"  Extracting {len(endpoint_groups)} endpoints...")
     endpoints = await mechanical_extraction(endpoint_groups, rest_traces)
 
     # Detect rate_limit per endpoint
@@ -93,5 +91,3 @@ async def _rest_extract(
         ep.rate_limit = extract_rate_limit(group_traces)
 
     return endpoints, endpoint_groups
-
-

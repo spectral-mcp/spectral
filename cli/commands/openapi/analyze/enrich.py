@@ -24,37 +24,37 @@ _MAX_RESPONSE_SCHEMA_CHARS = 5_000
 
 async def enrich_endpoints(ctx: EnrichmentContext) -> list[EndpointSpec]:
     """Parallel per-endpoint LLM calls to enrich each endpoint with business semantics."""
-
-    async def _enrich_one(ep: EndpointSpec) -> None:
-        summary = _build_endpoint_summary(ep, ctx.traces, ctx.correlations)
-        summary_size = len(minified(summary))
-        if summary_size > _MAX_SUMMARY_CHARS:
-            est_tokens = summary_size // 4
-            console.print(
-                f"  [yellow]Skipping enrichment for {ep.method} {ep.path}: "
-                f"summary too large ({summary_size:,} chars, ~{est_tokens:,} tokens)[/yellow]"
-            )
-            return
-        prompt = render_prompt(
-            "openapi-enrich-endpoint.j2",
-            app_name=ctx.app_name,
-            base_url=ctx.base_url,
-            summary=summary,
-        )
-
-        try:
-            conv = llm.Conversation(max_tokens=4096, label=f"enrich_{ep.id}")
-            result = await conv.ask_json(prompt, EndpointEnrichmentResponse)
-            _apply_enrichment(ep, result)
-        except Exception as exc:
-            console.print(
-                f"  [red]Enrichment failed for {ep.method} {ep.path}: "
-                f"{type(exc).__name__}[/red]"
-            )
-
-    await asyncio.gather(*[_enrich_one(ep) for ep in ctx.endpoints])
+    await asyncio.gather(*[_enrich_one(ep, ctx) for ep in ctx.endpoints])
 
     return ctx.endpoints
+
+
+async def _enrich_one(ep: EndpointSpec, ctx: EnrichmentContext) -> None:
+    summary = _build_endpoint_summary(ep, ctx.traces, ctx.correlations)
+    summary_size = len(minified(summary))
+    if summary_size > _MAX_SUMMARY_CHARS:
+        est_tokens = summary_size // 4
+        console.print(
+            f"  [yellow]Skipping enrichment for {ep.method} {ep.path}: "
+            f"summary too large ({summary_size:,} chars, ~{est_tokens:,} tokens)[/yellow]"
+        )
+        return
+    prompt = render_prompt(
+        "openapi-enrich-endpoint.j2",
+        app_name=ctx.app_name,
+        base_url=ctx.base_url,
+        summary=summary,
+    )
+
+    try:
+        conv = llm.Conversation(max_tokens=4096, label=f"enrich_{ep.id}")
+        result = await conv.ask_json(prompt, EndpointEnrichmentResponse)
+        _apply_enrichment(ep, result)
+    except Exception as exc:
+        console.print(
+            f"  [red]Enrichment failed for {ep.method} {ep.path}: "
+            f"{type(exc).__name__}[/red]"
+        )
 
 
 

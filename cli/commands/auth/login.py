@@ -78,11 +78,7 @@ def _fix_loop(
     llm_mod.set_model(model)
 
     bundle = load_app_bundle(app_name)
-
-    async def _detect_url() -> str:
-        return await detect_base_url(bundle, app_name)
-
-    base_url = asyncio.run(_detect_url())
+    base_url = asyncio.run(detect_base_url(bundle, app_name))
     system_context = build_shared_context(bundle, base_url)
 
     conv = _create_fix_conversation(bundle, system_context)

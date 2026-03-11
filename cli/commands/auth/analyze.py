@@ -104,8 +104,6 @@ def extract_script(text: str) -> str:
 )
 def analyze(app_name: str, model: str, debug: bool) -> None:
     """Analyze auth mechanism for an app and generate an auth script."""
-    from cli.helpers.context import build_shared_context
-    from cli.helpers.detect_base_url import detect_base_url
     from cli.helpers.storage import (
         auth_script_path,
         load_app_bundle,
@@ -120,22 +118,8 @@ def analyze(app_name: str, model: str, debug: bool) -> None:
     llm.init_debug(debug=debug)
     llm.set_model(model)
 
-    async def _run() -> str:
-        base_url = await detect_base_url(bundle, app_name)
-        console.print(f"  API base URL: {base_url}")
-
-        system_context = build_shared_context(bundle, base_url)
-
-        script = await generate_auth_script(
-            bundle=bundle,
-            api_name=app_name,
-            system_context=system_context,
-        )
-
-        return script
-
     try:
-        script = asyncio.run(_run())
+        script = asyncio.run(_run_auth(bundle, app_name))
     except NoAuthDetected:
         console.print()
         console.print(
@@ -148,3 +132,21 @@ def analyze(app_name: str, model: str, debug: bool) -> None:
     script_path.parent.mkdir(parents=True, exist_ok=True)
     script_path.write_text(script)
     console.print(f"[green]Auth script written to {script_path}[/green]")
+
+
+async def _run_auth(bundle: CaptureBundle, app_name: str) -> str:
+    from cli.helpers.context import build_shared_context
+    from cli.helpers.detect_base_url import detect_base_url
+
+    base_url = await detect_base_url(bundle, app_name)
+    console.print(f"  API base URL: {base_url}")
+
+    system_context = build_shared_context(bundle, base_url)
+
+    script = await generate_auth_script(
+        bundle=bundle,
+        api_name=app_name,
+        system_context=system_context,
+    )
+
+    return script
