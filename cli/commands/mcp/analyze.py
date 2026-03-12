@@ -9,11 +9,7 @@ import click
 from cli.commands.capture.types import CaptureBundle
 from cli.commands.mcp.build_tool import build_tool
 from cli.commands.mcp.identify import identify_capabilities
-from cli.commands.mcp.types import (
-    IdentifyInput,
-    McpPipelineResult,
-    ToolBuildInput,
-)
+from cli.formats.config import DEFAULT_MODEL
 from cli.formats.mcp_tool import ToolDefinition
 from cli.helpers.console import console
 from cli.helpers.context import build_shared_context
@@ -28,11 +24,7 @@ from cli.helpers.storage import (
 _MAX_ITERATIONS = 200
 
 
-async def build_mcp_tools(
-    bundle: CaptureBundle,
-    app_name: str,
-    skip_enrich: bool = False,
-) -> McpPipelineResult:
+async def build_mcp_tools(bundle: CaptureBundle, app_name: str) -> tuple[list[ToolDefinition], str]:
     """Build MCP tool definitions from a capture bundle."""
 
     # Step 1: Detect base URL
@@ -64,13 +56,9 @@ async def build_mcp_tools(
 
         # Lightweight: is this trace useful?
         candidate = await identify_capabilities(
-            IdentifyInput(
-                bundle=remaining_bundle,
-                base_url=base_url,
-                target_trace=target,
-                existing_tools=tools,
-                system_context=system_context,
-            )
+            target_trace=target,
+            existing_tools=tools,
+            system_context=system_context,
         )
 
         if candidate is None:
@@ -85,13 +73,10 @@ async def build_mcp_tools(
             f"    Evaluating {target.meta.id}... useful \u2192 building {candidate.name}"
         )
         build_result = await build_tool(
-            ToolBuildInput(
-                candidate=candidate,
-                bundle=filtered_bundle,
-                base_url=base_url,
-                existing_tools=tools,
-                system_context=system_context,
-            )
+            candidate=candidate,
+            bundle=filtered_bundle,
+            existing_tools=tools,
+            system_context=system_context,
         )
         tools.append(build_result.tool)
 
@@ -110,10 +95,7 @@ async def build_mcp_tools(
 
     console.print(f"  Extracted {len(tools)} tool(s).")
 
-    return McpPipelineResult(
-        tools=tools,
-        base_url=base_url,
-    )
+    return tools, base_url
 
 
 @click.command()
@@ -121,15 +103,8 @@ async def build_mcp_tools(
 @click.option(
     "--debug", is_flag=True, default=False, help="Save LLM prompts/responses to debug/"
 )
-@click.option(
-    "--skip-enrich",
-    is_flag=True,
-    default=False,
-    help="Skip LLM enrichment step (business context, glossary, etc.)",
-)
-def analyze_cmd(app_name: str, debug: bool, skip_enrich: bool) -> None:
+def analyze_cmd(app_name: str, debug: bool) -> None:
     """Generate MCP tool definitions from captures."""
-    from cli.formats.config import DEFAULT_MODEL
 
     cap_count = len(list_captures(app_name))
     console.print(f"[bold]Loading captures for app:[/bold] {app_name}")
@@ -144,18 +119,12 @@ def analyze_cmd(app_name: str, debug: bool, skip_enrich: bool) -> None:
     llm.init_debug(debug=debug)
 
     console.print(f"[bold]Generating MCP tools with LLM ({DEFAULT_MODEL})...[/bold]")
-    result = asyncio.run(
-        build_mcp_tools(
-            bundle,
-            app_name,
-            skip_enrich=skip_enrich,
-        )
-    )
+    tools, _base_url = asyncio.run(build_mcp_tools(bundle, app_name))
 
-    write_tools(app_name, result.tools)
-    console.print(f"[green]Wrote {len(result.tools)} tool(s) to storage[/green]")
+    write_tools(app_name, tools)
+    console.print(f"[green]Wrote {len(tools)} tool(s) to storage[/green]")
 
-    for tool in result.tools:
+    for tool in tools:
         console.print(
             f"  Tool: {tool.name} — {tool.request.method} {tool.request.path}"
         )

@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from pydantic import BaseModel
 
-from cli.commands.capture.types import CaptureBundle, Trace
 from cli.formats.mcp_tool import ToolDefinition
 
 
@@ -32,43 +31,3 @@ class ToolCandidate:
     name: str
     description: str
     trace_ids: list[str]
-
-
-@dataclass
-class ToolBuildInput:
-    """Input for the BuildToolStep."""
-
-    candidate: ToolCandidate
-    bundle: CaptureBundle
-    base_url: str
-    existing_tools: list[ToolDefinition]
-    system_context: str
-
-
-@dataclass
-class ToolBuildResult:
-    """Output of the BuildToolStep: tool definition + consumed trace IDs."""
-
-    tool: ToolDefinition
-    consumed_trace_ids: list[str]
-
-
-@dataclass
-class IdentifyInput:
-    """Input for the IdentifyCapabilitiesStep (per-trace evaluation)."""
-
-    bundle: CaptureBundle
-    base_url: str
-    target_trace: Trace
-    existing_tools: list[ToolDefinition]
-    system_context: str
-
-
-@dataclass
-class McpPipelineResult:
-    """Result of the MCP analysis pipeline."""
-
-    tools: list[ToolDefinition] = field(
-        default_factory=lambda: list[ToolDefinition]()
-    )
-    base_url: str = ""

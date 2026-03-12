@@ -12,7 +12,7 @@ import pytest
 
 from cli.commands.capture.types import CaptureBundle, Context, Trace
 from cli.commands.mcp.build_tool import _collect_param_refs, build_tool
-from cli.commands.mcp.types import ToolBuildInput, ToolCandidate
+from cli.commands.mcp.types import ToolCandidate
 from cli.formats.capture_bundle import (
     AppInfo,
     CaptureManifest,
@@ -85,13 +85,12 @@ async def test_build_valid_tool() -> None:
         ),
     ]
 
-    result = await build_tool(ToolBuildInput(
+    result = await build_tool(
         candidate=ToolCandidate("search_routes", "Search routes", ["t_0001"]),
         bundle=_make_bundle(traces=traces),
-        base_url="https://api.example.com",
         existing_tools=[],
         system_context="",
-    ))
+    )
 
     assert result.tool.name == "search_routes"
     assert result.tool.request.method == "POST"
@@ -126,13 +125,12 @@ async def test_build_tool_minimal_params() -> None:
         make_trace("t_0001", "POST", "https://api.example.com/api/search", 200, 1000),
     ]
 
-    result = await build_tool(ToolBuildInput(
+    result = await build_tool(
         candidate=ToolCandidate("search_routes", "Search routes", ["t_0001"]),
         bundle=_make_bundle(traces=traces),
-        base_url="https://api.example.com",
         existing_tools=[],
         system_context="",
-    ))
+    )
 
     assert result.tool.name == "search_routes"
     assert result.consumed_trace_ids == ["t_0001"]
@@ -162,13 +160,12 @@ async def test_build_tool_with_path_params() -> None:
         make_trace("t_0001", "GET", "https://api.example.com/api/users/123", 200, 1000),
     ]
 
-    result = await build_tool(ToolBuildInput(
+    result = await build_tool(
         candidate=ToolCandidate("get_user", "Get user", ["t_0001"]),
         bundle=_make_bundle(traces=traces),
-        base_url="https://api.example.com",
         existing_tools=[],
         system_context="",
-    ))
+    )
 
     assert result.tool.name == "get_user"
     assert "{user_id}" in result.tool.request.path
@@ -189,13 +186,12 @@ async def test_build_tool_validation_missing_param() -> None:
     traces = [make_trace("t_0001", "GET", "https://api.example.com/api/users/123", 200, 1000)]
 
     with pytest.raises(ValueError, match="Path params not in parameters"):
-        await build_tool(ToolBuildInput(
+        await build_tool(
             candidate=ToolCandidate("get_user", "Get user", ["t_0001"]),
             bundle=_make_bundle(traces=traces),
-            base_url="https://api.example.com",
             existing_tools=[],
             system_context="",
-        ))
+        )
 
 
 class TestToolRequestHeaderValidation:

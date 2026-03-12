@@ -6,12 +6,12 @@ import json
 import re
 from typing import Any, cast
 
-from cli.commands.capture.types import Trace
+from cli.commands.capture.types import CaptureBundle, Trace
 from cli.commands.mcp.types import (
     BuildToolResponse,
-    ToolBuildInput,
-    ToolBuildResult,
+    ToolCandidate,
 )
+from cli.formats.mcp_tool import ToolDefinition
 import cli.helpers.llm as llm
 from cli.helpers.prompt import load, render
 
@@ -26,16 +26,18 @@ def _parse_request_body(trace: Trace) -> Any | None:
         return None
 
 
-async def build_tool(input: ToolBuildInput) -> ToolBuildResult:
+async def build_tool(
+    candidate: ToolCandidate,
+    bundle: CaptureBundle,
+    existing_tools: list[ToolDefinition],
+    system_context: str,
+) -> BuildToolResponse:
     """Build a complete MCP tool definition using LLM with investigation tools.
 
-    Input: ToolBuildInput (candidate, traces, base_url, existing_tools, system_context).
-    Output: ToolBuildResult (tool definition + consumed trace IDs).
+    Returns a BuildToolResponse (tool definition + consumed trace IDs).
     """
-    candidate = input.candidate
-
     target_trace = next(
-        (t for t in input.bundle.traces if t.meta.id in candidate.trace_ids),
+        (t for t in bundle.traces if t.meta.id in candidate.trace_ids),
         None,
     )
     request_body = _parse_request_body(target_trace) if target_trace else None
@@ -44,7 +46,7 @@ async def build_tool(input: ToolBuildInput) -> ToolBuildResult:
         "mcp-build-tool-user.j2",
         candidate_name=candidate.name,
         candidate_description=candidate.description,
-        existing_tools=input.existing_tools,
+        existing_tools=existing_tools,
         target_trace=target_trace,
         request_body=request_body,
     )
@@ -54,24 +56,23 @@ async def build_tool(input: ToolBuildInput) -> ToolBuildResult:
         "inspect_request", "inspect_trace",
         "infer_request_schema", "query_traces",
     ]
-    if input.bundle.contexts:
+    if bundle.contexts:
         tool_names.append("inspect_context")
 
     conv = llm.Conversation(
-        system=[input.system_context, load("mcp-build-tool-instructions.j2")],
+        system=[system_context, load("mcp-build-tool-instructions.j2")],
         label=f"build_tool_{candidate.name}",
         tool_names=tool_names,
-        bundle=input.bundle,
+        bundle=bundle,
         max_tokens=8192,
     )
     result = await conv.ask_json(prompt, BuildToolResponse)
 
-    tool_result = ToolBuildResult(tool=result.tool, consumed_trace_ids=result.consumed_trace_ids)
-    _validate_tool_result(tool_result)
-    return tool_result
+    _validate_tool_result(result)
+    return result
 
 
-def _validate_tool_result(output: ToolBuildResult) -> None:
+def _validate_tool_result(output: BuildToolResponse) -> None:
     tool = output.tool
     # Validate path params match parameters
     path_params = set(re.findall(r"\{(\w+)\}", tool.request.path))

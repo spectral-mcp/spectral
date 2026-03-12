@@ -171,9 +171,9 @@ async def test_pipeline_extracts_tools() -> None:
     _setup_pipeline_llm()
     bundle = _make_bundle()
 
-    result = await build_mcp_tools(bundle, "testapp")
+    tools, base_url = await build_mcp_tools(bundle, "testapp")
 
-    assert result.base_url == "https://api.example.com"
-    assert len(result.tools) >= 1
-    tool_names = {t.name for t in result.tools}
+    assert base_url == "https://api.example.com"
+    assert len(tools) >= 1
+    tool_names = {t.name for t in tools}
     assert "search_routes" in tool_names

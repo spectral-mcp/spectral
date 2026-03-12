@@ -14,33 +14,10 @@ from pydantic_ai.messages import (
 )
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 
-from cli.commands.capture.types import CaptureBundle, Trace
 from cli.commands.mcp.identify import identify_capabilities
-from cli.commands.mcp.types import IdentifyInput
-from cli.formats.capture_bundle import (
-    AppInfo,
-    CaptureManifest,
-    CaptureStats,
-    Timeline,
-)
 from cli.formats.mcp_tool import ToolDefinition, ToolRequest
 from cli.helpers.llm._client import set_test_model
 from tests.conftest import make_trace
-
-
-def _make_bundle(traces: list[Trace] | None = None) -> CaptureBundle:
-    return CaptureBundle(
-        manifest=CaptureManifest(
-            capture_id="test",
-            created_at="2026-01-01T00:00:00Z",
-            app=AppInfo(name="T", base_url="http://localhost", title="T"),
-            duration_ms=10000,
-            stats=CaptureStats(),
-        ),
-        traces=traces or [],
-        contexts=[],
-        timeline=Timeline(),
-    )
 
 
 def _extract_user_prompt(messages: list[Any]) -> str:
@@ -89,13 +66,11 @@ async def test_identify_returns_candidate_when_useful() -> None:
 
     target = make_trace("t_0001", "POST", "https://api.example.com/search", 200, 1000)
 
-    result = await identify_capabilities(IdentifyInput(
-        bundle=_make_bundle([target]),
-        base_url="https://api.example.com",
+    result = await identify_capabilities(
         target_trace=target,
         existing_tools=[],
         system_context="\U0001f310 t_0001: POST /search \u2192 200",
-    ))
+    )
 
     assert result is not None
     assert result.name == "search_routes"
@@ -107,13 +82,11 @@ async def test_identify_returns_none_when_not_useful() -> None:
     _setup_llm(json.dumps({"useful": False}))
 
     target = make_trace("t_0001", "GET", "https://cdn.example.com/font.woff", 200, 1000)
-    result = await identify_capabilities(IdentifyInput(
-        bundle=_make_bundle([target]),
-        base_url="https://cdn.example.com",
+    result = await identify_capabilities(
         target_trace=target,
         existing_tools=[],
         system_context="",
-    ))
+    )
 
     assert result is None
 
@@ -123,13 +96,11 @@ async def test_identify_returns_none_on_malformed_response() -> None:
     _setup_llm(json.dumps({"useful": False, "name": None, "description": None}))
 
     target = make_trace("t_0001", "GET", "https://cdn.example.com/font.woff", 200, 1000)
-    result = await identify_capabilities(IdentifyInput(
-        bundle=_make_bundle([target]),
-        base_url="https://cdn.example.com",
+    result = await identify_capabilities(
         target_trace=target,
         existing_tools=[],
         system_context="",
-    ))
+    )
 
     assert result is None
 
@@ -150,13 +121,11 @@ async def test_identify_no_tools_in_llm_call() -> None:
     set_test_model(FunctionModel(model_fn))
 
     target = make_trace("t_0001", "GET", "https://api.example.com/data", 200, 1000)
-    await identify_capabilities(IdentifyInput(
-        bundle=_make_bundle([target]),
-        base_url="https://api.example.com",
+    await identify_capabilities(
         target_trace=target,
         existing_tools=[],
         system_context="",
-    ))
+    )
 
     assert len(captured_info) == 1
     # Only the result tool should be present, no investigation tools
@@ -188,13 +157,11 @@ async def test_identify_shows_existing_tools() -> None:
     ]
 
     target = make_trace("t_0003", "GET", "https://api.example.com/account", 200, 3000)
-    await identify_capabilities(IdentifyInput(
-        bundle=_make_bundle([target]),
-        base_url="https://api.example.com",
+    await identify_capabilities(
         target_trace=target,
         existing_tools=existing,
         system_context="",
-    ))
+    )
 
     assert captured_prompts
     prompt = captured_prompts[0]
@@ -221,13 +188,11 @@ async def test_identify_shows_request_details_inline() -> None:
         "t_0001", "POST", "https://api.example.com/api/search", 200, 1000,
         request_body=json.dumps({"origin": "Paris", "destination": "Lyon"}).encode(),
     )
-    await identify_capabilities(IdentifyInput(
-        bundle=_make_bundle([target]),
-        base_url="https://api.example.com",
+    await identify_capabilities(
         target_trace=target,
         existing_tools=[],
         system_context="",
-    ))
+    )
 
     assert captured_prompts
     prompt = captured_prompts[0]
@@ -259,13 +224,11 @@ async def test_identify_includes_timeline_in_system() -> None:
     )
 
     target = make_trace("t_0001", "POST", "https://api.example.com/api/search", 200, 1000)
-    await identify_capabilities(IdentifyInput(
-        bundle=_make_bundle([target]),
-        base_url="https://api.example.com/api",
+    await identify_capabilities(
         target_trace=target,
         existing_tools=[],
         system_context=timeline,
-    ))
+    )
 
     assert captured_systems
     system_text = captured_systems[0]
