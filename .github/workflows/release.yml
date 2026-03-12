@@ -21,6 +21,8 @@ jobs:
         with:
           fetch-depth: 0
 
+      - uses: astral-sh/setup-uv@v4
+
       - uses: python-semantic-release/python-semantic-release@v9
         id: release
         with:
