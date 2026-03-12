@@ -141,6 +141,9 @@ export function handleRequestWillBeSent(params) {
   // Skip chrome-extension:// URLs
   if (request.url.startsWith('chrome-extension://')) return;
 
+  // Skip OPTIONS (CORS preflight) requests — no business semantics
+  if (request.method === 'OPTIONS') return;
+
   // Compute time offset on the first event (wallTime = epoch seconds)
   if (captureState.timeOffset === null && wallTime) {
     captureState.timeOffset = wallTime * 1000 - timestamp * 1000;

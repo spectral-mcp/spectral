@@ -135,6 +135,13 @@ class TestCaptureAddon:
 
         assert len(addon.traces) == 0
 
+    def test_options_flow_skipped(self) -> None:
+        addon = CaptureAddon()
+        flow = _make_mock_flow(method="OPTIONS")
+        addon.response(flow)
+
+        assert len(addon.traces) == 0
+
     def test_build_bundle(self) -> None:
         addon = CaptureAddon()
         addon.response(_make_mock_flow())

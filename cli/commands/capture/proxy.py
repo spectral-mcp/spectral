@@ -56,6 +56,8 @@ class CaptureAddon:
         """Called when a full HTTP response has been received."""
         if flow.websocket:
             return
+        if flow.request.method == "OPTIONS":
+            return
 
         self._trace_counter += 1
         trace_id = f"t_{self._trace_counter:04d}"
