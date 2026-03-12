@@ -37,20 +37,18 @@ Most apps — web, mobile, desktop — sit on top of undocumented HTTP APIs. Spe
 
 ## Install
 
-```bash
-pip install spectral-mcp
-```
-
-or with [uv](https://docs.astral.sh/uv/):
-
-```bash
-uv tool install spectral-mcp
-```
-
-Alternatively, install from source with the one-liner:
+The install script sets up Spectral, installs shell completions, and ensures your PATH is configured:
 
 ```bash
 curl -LsSf https://raw.githubusercontent.com/romain-gilliotte/spectral/main/install.sh | bash
+```
+
+If you prefer managing packages yourself, you can install directly with pip or [uv](https://docs.astral.sh/uv/) — but you will need to set up shell completions manually:
+
+```bash
+pip install spectral-mcp
+# or
+uv tool install spectral-mcp
 ```
 
 You also need an [Anthropic API key](https://console.anthropic.com/) — Spectral will prompt for it on first analysis.
