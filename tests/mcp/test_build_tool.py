@@ -19,7 +19,7 @@ from cli.formats.capture_bundle import (
     CaptureStats,
     Timeline,
 )
-from cli.formats.mcp_tool import _collect_param_refs
+from cli.formats.mcp_tool import collect_param_refs
 from cli.helpers.llm._client import set_test_model
 from tests.conftest import make_trace
 
@@ -224,16 +224,16 @@ class TestToolRequestHeaderValidation:
 
 class TestCollectParamRefs:
     def test_empty(self) -> None:
-        assert _collect_param_refs(None) == set()
+        assert collect_param_refs(None) == set()
 
     def test_simple(self) -> None:
         body = {"a": {"$param": "origin"}, "b": "fixed"}
-        assert _collect_param_refs(body) == {"origin"}
+        assert collect_param_refs(body) == {"origin"}
 
     def test_nested(self) -> None:
         body = {"data": {"name": {"$param": "name"}, "nested": {"x": {"$param": "x"}}}}
-        assert _collect_param_refs(body) == {"name", "x"}
+        assert collect_param_refs(body) == {"name", "x"}
 
     def test_array(self) -> None:
         body = {"items": [{"val": {"$param": "v"}}]}
-        assert _collect_param_refs(body) == {"v"}
+        assert collect_param_refs(body) == {"v"}

@@ -94,6 +94,7 @@ _spectral() {
                 local -a subcmds=(
                     'analyze:Analyze captures into MCP tools'
                     'install:Install MCP server into Claude Desktop or Claude Code'
+                    'migrate:Migrate on-disk tools and app.json to current schema'
                     'stdio:Start MCP server on stdio'
                 )
                 _describe 'mcp command' subcmds && ret=0

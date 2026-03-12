@@ -342,6 +342,46 @@ class TestToolStorage:
         assert loaded[0].name == "new_tool"
 
 
+    def test_list_tools_skips_invalid_json(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        monkeypatch.setenv("SPECTRAL_HOME", str(tmp_path))
+        ensure_app("myapp")
+        write_tools("myapp", [_make_tool("good_tool")])
+        # Write invalid JSON alongside the valid tool
+        (tools_dir("myapp") / "bad_tool.json").write_text("{invalid json")
+
+        loaded = list_tools("myapp")
+        assert len(loaded) == 1
+        assert loaded[0].name == "good_tool"
+        captured = capsys.readouterr()
+        assert "bad_tool.json" in captured.err
+
+    def test_list_tools_skips_stale_schema(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        monkeypatch.setenv("SPECTRAL_HOME", str(tmp_path))
+        ensure_app("myapp")
+        td = tools_dir("myapp")
+        td.mkdir(parents=True, exist_ok=True)
+        # Write a tool with old "path" field instead of "url"
+        import json
+        from typing import Any
+
+        stale: dict[str, Any] = {
+            "name": "stale_tool",
+            "description": "A stale tool",
+            "parameters": {"type": "object", "properties": {}},
+            "request": {"method": "GET", "path": "/api/foo"},
+        }
+        (td / "stale_tool.json").write_text(json.dumps(stale))
+
+        loaded = list_tools("myapp")
+        assert len(loaded) == 0
+        captured = capsys.readouterr()
+        assert "stale_tool.json" in captured.err
+
+
 class TestTokenStorage:
     def test_load_token_missing(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
         monkeypatch.setenv("SPECTRAL_HOME", str(tmp_path))

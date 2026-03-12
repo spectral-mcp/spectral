@@ -40,8 +40,8 @@ class ToolDefinition(BaseModel):
                 f"URL {{param}} placeholders not in parameters: {missing_url}",
             )
 
-        body_refs = _collect_param_refs(self.request.body)
-        query_refs = _collect_param_refs(self.request.query)
+        body_refs = collect_param_refs(self.request.body)
+        query_refs = collect_param_refs(self.request.query)
         all_refs = body_refs | query_refs | url_params
 
         missing = all_refs - properties
@@ -58,7 +58,7 @@ class ToolDefinition(BaseModel):
         return self
 
 
-def _collect_param_refs(obj: object) -> set[str]:
+def collect_param_refs(obj: object) -> set[str]:
     """Collect all ``$param`` reference names from a template object."""
     refs: set[str] = set()
     if isinstance(obj, dict):
@@ -67,11 +67,11 @@ def _collect_param_refs(obj: object) -> set[str]:
             refs.add(str(d["$param"]))
         else:
             for v in d.values():
-                refs.update(_collect_param_refs(v))
+                refs.update(collect_param_refs(v))
     elif isinstance(obj, list):
         items = cast(list[Any], obj)
         for item in items:
-            refs.update(_collect_param_refs(item))
+            refs.update(collect_param_refs(item))
     return refs
 
 

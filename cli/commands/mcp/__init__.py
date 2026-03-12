@@ -6,6 +6,7 @@ import click
 
 from cli.commands.mcp.analyze import analyze_cmd
 from cli.commands.mcp.install import install
+from cli.commands.mcp.migrate import migrate
 from cli.commands.mcp.server import stdio
 
 
@@ -17,3 +18,4 @@ def mcp() -> None:
 mcp.add_command(stdio)
 mcp.add_command(analyze_cmd, "analyze")
 mcp.add_command(install)
+mcp.add_command(migrate)

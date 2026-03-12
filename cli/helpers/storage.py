@@ -218,7 +218,10 @@ def list_tools(app_name: str) -> list[ToolDefinition]:
     result: list[ToolDefinition] = []
     for f in sorted(td.iterdir()):
         if f.suffix == ".json" and f.is_file():
-            result.append(ToolDefinition.model_validate_json(f.read_text()))
+            try:
+                result.append(ToolDefinition.model_validate_json(f.read_text()))
+            except Exception as exc:
+                click.echo(f"Warning: skipping {f.name} for app '{app_name}': {exc}", err=True)
     return result
 
 

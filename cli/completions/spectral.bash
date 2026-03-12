@@ -47,7 +47,7 @@ _spectral() {
             COMPREPLY=($(compgen -W "--help" -- "$cur")) ;;
         mcp)
             if [[ $cword -eq 2 ]]; then
-                COMPREPLY=($(compgen -W "analyze install stdio --help" -- "$cur"))
+                COMPREPLY=($(compgen -W "analyze install migrate stdio --help" -- "$cur"))
                 return
             fi
             case "$cmd2" in
