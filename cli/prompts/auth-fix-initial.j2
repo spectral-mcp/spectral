@@ -5,7 +5,7 @@
 Use the `inspect_trace` tool to examine any trace in detail.
 
 {% for t in traces %}
-- {{ t.meta.id }}: {{ t.meta.request.method }} {{ t.meta.request.url }} → {{ t.meta.response.status }}{% if t | is_auth_trace %} [AUTH]{% endif %}
+- {{ t.meta.id }}: {{ t.meta.request.method }} {{ t.meta.request.url }} → {{ t.meta.response.status }}{{ " [AUTH]" if t | is_auth_trace else "" }}
 {% endfor %}
 
 ## Current auth script (failing)

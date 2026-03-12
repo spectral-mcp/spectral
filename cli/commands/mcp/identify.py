@@ -5,12 +5,15 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from pydantic_ai.exceptions import UnexpectedModelBehavior
+
 from cli.commands.capture.types import Trace
 from cli.commands.mcp.types import (
     IdentifyResponse,
     ToolCandidate,
 )
 from cli.formats.mcp_tool import ToolDefinition
+from cli.helpers.console import console
 import cli.helpers.llm as llm
 from cli.helpers.prompt import load, render
 
@@ -39,7 +42,11 @@ async def identify_capabilities(
         label=f"identify_{target_trace.meta.id}",
         max_tokens=1024,
     )
-    result = await conv.ask_json(prompt, IdentifyResponse)
+    try:
+        result = await conv.ask_json(prompt, IdentifyResponse)
+    except UnexpectedModelBehavior as exc:
+        console.print(f"    [yellow]⚠ LLM returned invalid output for {target_trace.meta.id}, skipping ({exc})[/yellow]")
+        return None
 
     if not result.useful:
         return None

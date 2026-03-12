@@ -70,14 +70,14 @@ def _fix_loop(
     """Initialize LLM context once, then loop: fix script → retry login."""
     from cli.helpers.auth_runtime import acquire_auth
     from cli.helpers.context import build_shared_context
-    from cli.helpers.detect_base_url import detect_base_url
+    from cli.helpers.detect_base_url import detect_base_urls
     import cli.helpers.llm as llm_mod
     from cli.helpers.storage import auth_script_path, load_app_bundle
 
     llm_mod.init_debug(debug=debug)
 
     bundle = load_app_bundle(app_name)
-    base_url = asyncio.run(detect_base_url(bundle, app_name))
+    base_url = asyncio.run(detect_base_urls(bundle, app_name))[0]
     system_context = build_shared_context(bundle, base_url)
 
     conv = _create_fix_conversation(bundle, system_context)

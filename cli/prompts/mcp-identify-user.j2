@@ -2,7 +2,7 @@
 
 ## Already-built tools (do NOT duplicate)
 {% for t in existing_tools %}
-- **{{ t.name }}**: {{ t.description }} ({{ t.request.method }} {{ t.request.path }})
+- **{{ t.name }}**: {{ t.description }} ({{ t.request.method }} {{ t.request.url }})
 {% endfor %}
 {% endif %}
 

@@ -10,7 +10,7 @@ import click
 from cli.commands.mcp.request import build_request
 from cli.formats.mcp_tool import ToolDefinition
 from cli.helpers.auth_runtime import AuthError, get_auth
-from cli.helpers.storage import list_apps, list_tools, load_app_meta
+from cli.helpers.storage import list_apps, list_tools
 
 # Registry: MCP tool name -> (app_name, ToolDefinition)
 _registry: dict[str, tuple[str, ToolDefinition]] = {}
@@ -44,11 +44,6 @@ async def _handle_call(
     """Execute a tool call: build request, inject auth, make HTTP call."""
     import requests
 
-    meta = load_app_meta(app_name)
-    base_url = meta.base_url
-    if not base_url:
-        return json.dumps({"error": f"No base_url configured for app '{app_name}'"})
-
     # Auth cascade
     auth_headers: dict[str, str] = {}
     auth_body_params: dict[str, Any] = {}
@@ -69,7 +64,7 @@ async def _handle_call(
             )
 
     method, url, headers, body = build_request(
-        tool, base_url, arguments, auth_headers, auth_body_params
+        tool, arguments, auth_headers, auth_body_params
     )
 
     try:

@@ -101,7 +101,7 @@ def _setup_pipeline_llm() -> None:
         full_text_lower = (prompt + " " + system_text).lower()
 
         if "base url" in prompt_lower and "business api" in prompt_lower:
-            text = json.dumps({"base_url": "https://api.example.com"})
+            text = json.dumps({"base_urls": ["https://api.example.com"]})
         elif "target trace: t_0001" in prompt_lower:
             text = json.dumps({
                 "useful": True,
@@ -123,7 +123,7 @@ def _setup_pipeline_llm() -> None:
                     },
                     "request": {
                         "method": "POST",
-                        "path": "/api/search",
+                        "url": "/api/search",
                         "body": {
                             "origin": {"$param": "origin"},
                             "destination": {"$param": "destination"},
@@ -145,7 +145,7 @@ def _setup_pipeline_llm() -> None:
                     "name": "get_account",
                     "description": "Get account info",
                     "parameters": {"type": "object", "properties": {}},
-                    "request": {"method": "GET", "path": "/api/account"},
+                    "request": {"method": "GET", "url": "/api/account"},
                 },
                 "consumed_trace_ids": ["t_0003"],
             })
@@ -171,9 +171,11 @@ async def test_pipeline_extracts_tools() -> None:
     _setup_pipeline_llm()
     bundle = _make_bundle()
 
-    tools, base_url = await build_mcp_tools(bundle, "testapp")
+    tools = await build_mcp_tools(bundle, "testapp")
 
-    assert base_url == "https://api.example.com"
     assert len(tools) >= 1
     tool_names = {t.name for t in tools}
     assert "search_routes" in tool_names
+    # URLs should be absolute after pipeline processing
+    for tool in tools:
+        assert tool.request.url.startswith("https://")

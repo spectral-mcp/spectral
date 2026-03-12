@@ -12,7 +12,7 @@ import yaml
 from cli.commands.openapi.analyze import rest_analyze
 from cli.helpers.console import console
 from cli.helpers.correlator import correlate
-from cli.helpers.detect_base_url import detect_base_url
+from cli.helpers.detect_base_url import detect_base_urls
 import cli.helpers.llm as llm
 from cli.helpers.storage import list_captures, load_app_bundle
 
@@ -78,7 +78,14 @@ def analyze(app_name: str, output: str, debug: bool, skip_enrich: bool) -> None:
 async def _run_openapi(
     bundle: CaptureBundle, app_name: str, skip_enrich: bool
 ) -> dict[str, Any]:
-    base_url = await detect_base_url(bundle, app_name)
+    base_urls = await detect_base_urls(bundle, app_name)
+    if len(base_urls) > 1:
+        base_url = click.prompt(
+            "Multiple API base URLs detected. Pick one to analyze",
+            type=click.Choice(base_urls),
+        )
+    else:
+        base_url = base_urls[0]
     console.print(f"  API base URL: {base_url}")
     rest_traces = [t for t in bundle.traces if t.meta.request.url.startswith(base_url)]
     console.print(

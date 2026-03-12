@@ -80,7 +80,7 @@ def _setup_openapi_llm() -> None:
         }
     )
 
-    base_url_response = json.dumps({"base_url": "https://api.example.com"})
+    base_url_response = json.dumps({"base_urls": ["https://api.example.com"]})
 
     def model_fn(messages: list[Any], info: AgentInfo) -> ModelResponse:
         prompt = _extract_user_prompt(messages)
@@ -351,7 +351,7 @@ def _setup_mcp_llm() -> None:
         full_text_lower = (prompt + " " + system_text).lower()
 
         if "base url" in prompt_lower and "business api" in prompt_lower:
-            text = json.dumps({"base_url": "https://api.example.com"})
+            text = json.dumps({"base_urls": ["https://api.example.com"]})
         elif "target trace:" in prompt_lower and "business capability" in full_text_lower:
             identify_call_count["n"] += 1
             if identify_call_count["n"] == 1:
@@ -368,7 +368,7 @@ def _setup_mcp_llm() -> None:
                     "name": "list_users",
                     "description": "List users",
                     "parameters": {"type": "object", "properties": {}},
-                    "request": {"method": "GET", "path": "/api/users"},
+                    "request": {"method": "GET", "url": "/api/users"},
                 },
                 "consumed_trace_ids": ["t_0001"],
             })
@@ -434,7 +434,7 @@ class TestAnalyzeMcpCommand:
 
         assert result.exit_code == 0, result.output
         meta = load_app_meta("testapp")
-        assert meta.base_url == "https://api.example.com"
+        assert meta.base_urls == ["https://api.example.com"]
 
 
 class TestAuthLoginCommand:

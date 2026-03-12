@@ -1,4 +1,4 @@
-"""Detect the business API base URL from captured traffic."""
+"""Detect the business API base URLs from captured traffic."""
 
 from __future__ import annotations
 
@@ -21,25 +21,28 @@ class MethodUrlPair:
     url: str
 
 
-class BaseUrlResponse(BaseModel):
-    base_url: str
+class BaseUrlsResponse(BaseModel):
+    base_urls: list[str]
 
-    @field_validator("base_url")
+    @field_validator("base_urls")
     @classmethod
-    def validate_base_url(cls, v: str) -> str:
-        v = v.rstrip("/")
-        if not v.startswith("http"):
-            raise ValueError(f"Invalid base URL: {v}")
-        return v
+    def validate_base_urls(cls, v: list[str]) -> list[str]:
+        result: list[str] = []
+        for url in v:
+            url = url.rstrip("/")
+            if not url.startswith("http"):
+                raise ValueError(f"Invalid base URL: {url}")
+            result.append(url)
+        return result
 
 
-async def detect_base_url(bundle: CaptureBundle, app_name: str) -> str:
-    """Detect the business API base URL from a capture bundle.
+async def detect_base_urls(bundle: CaptureBundle, app_name: str) -> list[str]:
+    """Detect the business API base URLs from a capture bundle.
 
     Checks app.json cache first, then falls back to LLM detection.
     """
-    # Fast path: return cached base_url from app.json if available
-    cached = _load_cached_base_url(app_name)
+    # Fast path: return cached base_urls from app.json if available
+    cached = _load_cached_base_urls(app_name)
     if cached is not None:
         return cached
 
@@ -48,26 +51,26 @@ async def detect_base_url(bundle: CaptureBundle, app_name: str) -> str:
         for t in bundle.traces
     )
 
-    prompt = render("detect-base-url.j2", counts=counts)
+    prompt = render("detect-base-urls.j2", counts=counts)
 
     conv = llm.Conversation(
-        label="detect_api_base_url",
+        label="detect_api_base_urls",
         tool_names=["decode_base64", "decode_url", "decode_jwt"],
     )
-    result = await conv.ask_json(prompt, BaseUrlResponse)
+    result = await conv.ask_json(prompt, BaseUrlsResponse)
     try:
-        update_app_meta(app_name, base_url=result.base_url)
+        update_app_meta(app_name, base_urls=result.base_urls)
     except Exception:
         pass
-    return result.base_url
+    return result.base_urls
 
 
-def _load_cached_base_url(app_name: str) -> str | None:
-    """Check app.json for a previously saved base_url."""
+def _load_cached_base_urls(app_name: str) -> list[str] | None:
+    """Check app.json for previously saved base_urls."""
     try:
         meta = load_app_meta(app_name)
-        if meta.base_url:
-            return meta.base_url
+        if meta.base_urls:
+            return meta.base_urls
     except Exception:
         pass
     return None

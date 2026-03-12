@@ -34,7 +34,7 @@ _DEFAULT_SCRIPT_RESPONSE = (
 )
 
 # Base URL detection response (first LLM call in the auth pipeline)
-_BASE_URL_RESPONSE = '{"base_url": "https://api.example.com"}'
+_BASE_URL_RESPONSE = '{"base_urls": ["https://api.example.com"]}'
 
 
 def _setup_auth_llm(script_response: str | None = None) -> None:
@@ -220,7 +220,7 @@ class TestAuthLoginFix:
 
         # Write app.json with base_url so detect_base_url uses cached value
         from cli.helpers.storage import update_app_meta
-        update_app_meta("testapp", base_url="https://api.example.com")
+        update_app_meta("testapp", base_urls=["https://api.example.com"])
 
         # Set up LLM mock — base URL is cached so only the fix call happens
         def model_fn(messages: list[Any], info: AgentInfo) -> ModelResponse:

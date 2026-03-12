@@ -7,24 +7,19 @@ from __future__ import annotations
 
 from enum import Enum
 from typing import Any, cast
-from urllib.parse import urlencode, urljoin
+from urllib.parse import urlencode
 
 from cli.formats.mcp_tool import ToolDefinition
 
 
-def _resolve_url(base_url: str, path_template: str, params: dict[str, Any]) -> str:
-    """Substitute ``{param}`` placeholders in *path_template* and join with *base_url*."""
-    path = path_template
+def _resolve_url(url_template: str, params: dict[str, Any]) -> str:
+    """Substitute ``{param}`` placeholders in *url_template*."""
+    url = url_template
     for key, value in params.items():
         placeholder = f"{{{key}}}"
-        if placeholder in path:
-            path = path.replace(placeholder, str(value))
-    # Ensure proper joining
-    if not base_url.endswith("/"):
-        base_url += "/"
-    if path.startswith("/"):
-        path = path[1:]
-    return urljoin(base_url, path)
+        if placeholder in url:
+            url = url.replace(placeholder, str(value))
+    return url
 
 
 def _resolve_query(query_template: dict[str, Any], params: dict[str, Any]) -> dict[str, str]:
@@ -83,7 +78,6 @@ def _resolve_value(value: Any, params: dict[str, Any]) -> Any:
 
 def build_request(
     tool: ToolDefinition,
-    base_url: str,
     params: dict[str, Any],
     auth_headers: dict[str, str] | None = None,
     auth_body_params: dict[str, Any] | None = None,
@@ -95,7 +89,7 @@ def build_request(
     req = tool.request
 
     # URL with path params
-    url = _resolve_url(base_url, req.path, params)
+    url = _resolve_url(req.url, params)
 
     # Query params
     query = _resolve_query(req.query, params) if req.query else {}

@@ -11,7 +11,7 @@ from pydantic_ai.models.function import AgentInfo, FunctionModel
 import pytest
 
 from cli.commands.capture.types import CaptureBundle, Context, Trace
-from cli.commands.mcp.build_tool import _collect_param_refs, build_tool
+from cli.commands.mcp.build_tool import build_tool
 from cli.commands.mcp.types import ToolCandidate
 from cli.formats.capture_bundle import (
     AppInfo,
@@ -19,6 +19,7 @@ from cli.formats.capture_bundle import (
     CaptureStats,
     Timeline,
 )
+from cli.formats.mcp_tool import _collect_param_refs
 from cli.helpers.llm._client import set_test_model
 from tests.conftest import make_trace
 
@@ -67,7 +68,7 @@ async def test_build_valid_tool() -> None:
             },
             "request": {
                 "method": "POST",
-                "path": "/api/search",
+                "url": "/api/search",
                 "body": {
                     "origin": {"$param": "origin"},
                     "destination": {"$param": "destination"},
@@ -115,7 +116,7 @@ async def test_build_tool_minimal_params() -> None:
             },
             "request": {
                 "method": "POST",
-                "path": "/api/search",
+                "url": "/api/search",
                 "body": {"origin": {"$param": "origin"}},
             },
         },
@@ -152,7 +153,7 @@ async def test_build_tool_with_path_params() -> None:
             },
             "request": {
                 "method": "GET",
-                "path": "/api/users/{user_id}",
+                "url": "/api/users/{user_id}",
             },
         },
         "consumed_trace_ids": ["t_0001"],
@@ -171,30 +172,31 @@ async def test_build_tool_with_path_params() -> None:
 
     assert result.tool is not None
     assert result.tool.name == "get_user"
-    assert "{user_id}" in result.tool.request.path
+    assert "{user_id}" in result.tool.request.url
 
 
-async def test_build_tool_validation_missing_param() -> None:
-    # Path param not in parameters → validation error
+async def test_build_tool_validation_missing_param_returns_fallback() -> None:
+    """Invalid $param refs → warning + fallback response with no tool."""
     _setup_llm(json.dumps({
         "tool": {
             "name": "get_user",
             "description": "Get a user",
             "parameters": {"type": "object", "properties": {}},
-            "request": {"method": "GET", "path": "/api/users/{user_id}"},
+            "request": {"method": "GET", "url": "/api/users/{user_id}"},
         },
         "consumed_trace_ids": ["t_0001"],
     }))
 
     traces = [make_trace("t_0001", "GET", "https://api.example.com/api/users/123", 200, 1000)]
 
-    with pytest.raises(ValueError, match="Path params not in parameters"):
-        await build_tool(
-            candidate=ToolCandidate("get_user", "Get user", ["t_0001"]),
-            bundle=_make_bundle(traces=traces),
-            existing_tools=[],
-            system_context="",
-        )
+    result = await build_tool(
+        candidate=ToolCandidate("get_user", "Get user", ["t_0001"]),
+        bundle=_make_bundle(traces=traces),
+        existing_tools=[],
+        system_context="",
+    )
+    assert result.tool is None
+    assert result.consumed_trace_ids == ["t_0001"]
 
 
 class TestToolRequestHeaderValidation:
@@ -205,7 +207,7 @@ class TestToolRequestHeaderValidation:
         with pytest.raises(Exception):
             ToolRequest.model_validate({
                 "method": "GET",
-                "path": "/api/cars",
+                "url": "/api/cars",
                 "headers": {"x-authorization": {"$param": "auth_token"}},
             })
 
@@ -214,7 +216,7 @@ class TestToolRequestHeaderValidation:
 
         req = ToolRequest.model_validate({
             "method": "GET",
-            "path": "/api/cars",
+            "url": "/api/cars",
             "headers": {"Accept": "application/json"},
         })
         assert req.headers == {"Accept": "application/json"}

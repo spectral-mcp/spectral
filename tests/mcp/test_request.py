@@ -17,25 +17,16 @@ from cli.formats.mcp_tool import ToolDefinition, ToolRequest
 
 
 class TestResolveUrl:
-    def test_simple_path(self) -> None:
-        url = _resolve_url("https://api.example.com", "/api/status", {})
+    def test_simple_url(self) -> None:
+        url = _resolve_url("https://api.example.com/api/status", {})
         assert url == "https://api.example.com/api/status"
 
-    def test_path_params(self) -> None:
+    def test_url_params(self) -> None:
         url = _resolve_url(
-            "https://api.example.com",
-            "/api/users/{user_id}/orders/{order_id}",
+            "https://api.example.com/api/users/{user_id}/orders/{order_id}",
             {"user_id": "123", "order_id": "456"},
         )
         assert url == "https://api.example.com/api/users/123/orders/456"
-
-    def test_base_url_with_path_prefix(self) -> None:
-        url = _resolve_url("https://www.example.com/api/v2", "/users", {})
-        assert url == "https://www.example.com/api/v2/users"
-
-    def test_base_url_trailing_slash(self) -> None:
-        url = _resolve_url("https://api.example.com/", "/users", {})
-        assert url == "https://api.example.com/users"
 
 
 class TestResolveQuery:
@@ -95,31 +86,28 @@ class TestBuildRequest:
             "name": "test_tool",
             "description": "A test tool",
             "parameters": {"type": "object", "properties": {}},
-            "request": ToolRequest(method="GET", path="/api/test"),
+            "request": ToolRequest(method="GET", url="https://api.example.com/api/test"),
         }
         defaults.update(kwargs)
         return ToolDefinition(**defaults)
 
     def test_simple_get(self) -> None:
         tool = self._make_tool()
-        method, url, headers, body = build_request(
-            tool, "https://api.example.com", {}
-        )
+        method, url, headers, body = build_request(tool, {})
         assert method == "GET"
         assert url == "https://api.example.com/api/test"
         assert body is None
 
     def test_post_with_body(self) -> None:
         tool = self._make_tool(
+            parameters={"type": "object", "properties": {"query": {"type": "string"}}},
             request=ToolRequest(
                 method="POST",
-                path="/api/search",
+                url="https://api.example.com/api/search",
                 body={"q": {"$param": "query"}, "limit": 10},
-            )
+            ),
         )
-        method, url, headers, body = build_request(
-            tool, "https://api.example.com", {"query": "hello"}
-        )
+        method, url, headers, body = build_request(tool, {"query": "hello"})
         assert method == "POST"
         assert body == {"q": "hello", "limit": 10}
         assert headers["Content-Type"] == "application/json"
@@ -128,13 +116,12 @@ class TestBuildRequest:
         tool = self._make_tool(
             request=ToolRequest(
                 method="GET",
-                path="/api/data",
+                url="https://api.example.com/api/data",
                 headers={"X-Client": "spectral"},
             )
         )
         method, url, headers, body = build_request(
             tool,
-            "https://api.example.com",
             {},
             auth_headers={"Authorization": "Bearer tok123"},
         )
@@ -143,57 +130,54 @@ class TestBuildRequest:
 
     def test_query_params(self) -> None:
         tool = self._make_tool(
+            parameters={"type": "object", "properties": {"query": {"type": "string"}}},
             request=ToolRequest(
                 method="GET",
-                path="/api/search",
+                url="https://api.example.com/api/search",
                 query={"q": {"$param": "query"}, "limit": "10"},
-            )
+            ),
         )
-        method, url, headers, body = build_request(
-            tool, "https://api.example.com", {"query": "trains"}
-        )
+        method, url, headers, body = build_request(tool, {"query": "trains"})
         assert "q=trains" in url
         assert "limit=10" in url
 
     def test_path_params(self) -> None:
         tool = self._make_tool(
+            parameters={"type": "object", "properties": {"user_id": {"type": "string"}}},
             request=ToolRequest(
                 method="GET",
-                path="/api/users/{user_id}",
-            )
+                url="https://api.example.com/api/users/{user_id}",
+            ),
         )
-        method, url, headers, body = build_request(
-            tool, "https://api.example.com", {"user_id": "42"}
-        )
+        method, url, headers, body = build_request(tool, {"user_id": "42"})
         assert url == "https://api.example.com/api/users/42"
 
     def test_form_encoded(self) -> None:
         tool = self._make_tool(
+            parameters={"type": "object", "properties": {"user": {"type": "string"}}},
             request=ToolRequest(
                 method="POST",
-                path="/api/login",
+                url="https://api.example.com/api/login",
                 body={"username": {"$param": "user"}, "grant_type": "password"},
                 content_type="application/x-www-form-urlencoded",
-            )
+            ),
         )
-        method, url, headers, body = build_request(
-            tool, "https://api.example.com", {"user": "alice"}
-        )
+        method, url, headers, body = build_request(tool, {"user": "alice"})
         assert headers["Content-Type"] == "application/x-www-form-urlencoded"
         assert "username=alice" in body
         assert "grant_type=password" in body
 
     def test_auth_body_params_merged_into_body(self) -> None:
         tool = self._make_tool(
+            parameters={"type": "object", "properties": {"q": {"type": "string"}}},
             request=ToolRequest(
                 method="POST",
-                path="/api/action",
+                url="https://api.example.com/api/action",
                 body={"query": {"$param": "q"}},
-            )
+            ),
         )
         method, url, headers, body = build_request(
             tool,
-            "https://api.example.com",
             {"q": "hello"},
             auth_body_params={"userToken": "tok", "userId": "u1"},
         )
@@ -201,11 +185,10 @@ class TestBuildRequest:
 
     def test_auth_body_params_creates_body_when_none(self) -> None:
         tool = self._make_tool(
-            request=ToolRequest(method="GET", path="/api/data")
+            request=ToolRequest(method="GET", url="https://api.example.com/api/data")
         )
         method, url, headers, body = build_request(
             tool,
-            "https://api.example.com",
             {},
             auth_body_params={"userToken": "tok"},
         )
@@ -213,11 +196,10 @@ class TestBuildRequest:
 
     def test_auth_body_params_empty_dict_no_effect(self) -> None:
         tool = self._make_tool(
-            request=ToolRequest(method="GET", path="/api/data")
+            request=ToolRequest(method="GET", url="https://api.example.com/api/data")
         )
         method, url, headers, body = build_request(
             tool,
-            "https://api.example.com",
             {},
             auth_body_params={},
         )

@@ -67,11 +67,20 @@ def analyze(app_name: str, output: str, debug: bool, skip_enrich: bool) -> None:
 async def _run_graphql(
     bundle: CaptureBundle, app_name: str, skip_enrich: bool
 ) -> str:
+    import click as click_mod
+
     from cli.commands.graphql.analyze import graphql_analyze
     from cli.helpers.correlator import correlate
-    from cli.helpers.detect_base_url import detect_base_url
+    from cli.helpers.detect_base_url import detect_base_urls
 
-    base_url = await detect_base_url(bundle, app_name)
+    base_urls = await detect_base_urls(bundle, app_name)
+    if len(base_urls) > 1:
+        base_url = click_mod.prompt(
+            "Multiple API base URLs detected. Pick one to analyze",
+            type=click_mod.Choice(base_urls),
+        )
+    else:
+        base_url = base_urls[0]
     console.print(f"  API base URL: {base_url}")
     gql_traces = [t for t in bundle.traces if t.meta.request.url.startswith(base_url)]
     console.print(f"  Kept {len(gql_traces)}/{len(bundle.traces)} traces under {base_url}")

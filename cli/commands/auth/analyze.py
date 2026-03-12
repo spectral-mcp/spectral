@@ -134,9 +134,9 @@ def analyze(app_name: str, debug: bool) -> None:
 
 async def _run_auth(bundle: CaptureBundle, app_name: str) -> str:
     from cli.helpers.context import build_shared_context
-    from cli.helpers.detect_base_url import detect_base_url
+    from cli.helpers.detect_base_url import detect_base_urls
 
-    base_url = await detect_base_url(bundle, app_name)
+    base_url = (await detect_base_urls(bundle, app_name))[0]
     console.print(f"  API base URL: {base_url}")
 
     system_context = build_shared_context(bundle, base_url)

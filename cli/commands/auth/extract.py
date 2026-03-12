@@ -87,9 +87,9 @@ async def _extract_auth_from_traces(
 
     Returns a TokenState if auth headers are found, None otherwise.
     """
-    from cli.helpers.detect_base_url import detect_base_url
+    from cli.helpers.detect_base_url import detect_base_urls
 
-    base_url = await detect_base_url(bundle, app_name)
+    base_url = (await detect_base_urls(bundle, app_name))[0]
 
     filtered = _filter_traces_by_base_url(bundle.traces, base_url)
     if not filtered:

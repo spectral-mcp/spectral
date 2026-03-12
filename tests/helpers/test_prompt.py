@@ -36,7 +36,7 @@ def test_render_with_counter():
     counts: Counter[tuple[str, str]] = Counter()
     counts[("GET", "https://api.example.com/foo")] = 1
     counts[("POST", "https://api.example.com/bar")] = 2
-    result = render("detect-base-url.j2", counts=counts)
+    result = render("detect-base-urls.j2", counts=counts)
     assert "GET https://api.example.com/foo" in result
     assert "POST https://api.example.com/bar" in result
 
@@ -47,7 +47,7 @@ def test_render_conditional_sections():
             name="tool_a",
             description="A tool",
             parameters={"type": "object", "properties": {}},
-            request=ToolRequest(method="GET", path="/api/a"),
+            request=ToolRequest(method="GET", url="/api/a"),
         ),
     ]
     target = make_trace("t_0001", "GET", "https://api.example.com/foo", 200, 1000)

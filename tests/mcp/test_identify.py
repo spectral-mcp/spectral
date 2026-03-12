@@ -152,7 +152,7 @@ async def test_identify_shows_existing_tools() -> None:
             name="search_routes",
             description="Search for routes",
             parameters={"type": "object", "properties": {}},
-            request=ToolRequest(method="POST", path="/api/search"),
+            request=ToolRequest(method="POST", url="/api/search"),
         ),
     ]
 

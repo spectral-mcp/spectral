@@ -23,7 +23,7 @@ from cli.formats.mcp_tool import ToolDefinition, ToolRequest
 def _make_tool(
     name: str = "search",
     method: str = "POST",
-    path: str = "/api/search",
+    url: str = "https://api.example.com/api/search",
     requires_auth: bool = False,
 ) -> ToolDefinition:
     return ToolDefinition(
@@ -34,7 +34,7 @@ def _make_tool(
             "properties": {"q": {"type": "string"}},
             "required": ["q"],
         },
-        request=ToolRequest(method=method, path=path, body={"query": {"$param": "q"}}),
+        request=ToolRequest(method=method, url=url, body={"query": {"$param": "q"}}),
         requires_auth=requires_auth,
     )
 
@@ -46,7 +46,21 @@ class TestRegistry:
         monkeypatch.setenv("SPECTRAL_HOME", str(tmp_path))
         ensure_app("myapp")
 
-        tools = [_make_tool("search"), _make_tool("get_user", "GET", "/api/users/{user_id}")]
+        get_user = ToolDefinition(
+            name="get_user",
+            description="Test tool: get_user",
+            parameters={
+                "type": "object",
+                "properties": {"user_id": {"type": "string"}, "q": {"type": "string"}},
+                "required": ["user_id"],
+            },
+            request=ToolRequest(
+                method="GET",
+                url="https://api.example.com/api/users/{user_id}",
+                body={"query": {"$param": "q"}},
+            ),
+        )
+        tools = [_make_tool("search"), get_user]
         write_tools("myapp", tools)
 
         _build_registry()
@@ -99,12 +113,11 @@ class TestCallTool:
         monkeypatch: pytest.MonkeyPatch,
         tmp_path: pytest.TempPathFactory,
     ) -> None:
-        from cli.helpers.storage import ensure_app, update_app_meta, write_tools
+        from cli.helpers.storage import ensure_app, write_tools
 
         monkeypatch.setenv("SPECTRAL_HOME", str(tmp_path))
         ensure_app("testapp")
         write_tools("testapp", [_make_tool("search")])
-        update_app_meta("testapp", base_url="https://api.example.com")
 
         mock_resp = MagicMock()
         mock_resp.status_code = 200
@@ -123,21 +136,6 @@ class TestCallTool:
         assert call_kwargs.kwargs["url"] == "https://api.example.com/api/search"
         assert call_kwargs.kwargs["json"] == {"query": "hello"}
 
-    async def test_call_tool_no_base_url(
-        self, monkeypatch: pytest.MonkeyPatch, tmp_path: pytest.TempPathFactory
-    ) -> None:
-        from cli.helpers.storage import ensure_app, write_tools
-
-        monkeypatch.setenv("SPECTRAL_HOME", str(tmp_path))
-        ensure_app("testapp")
-        write_tools("testapp", [_make_tool("search")])
-
-        tool = _make_tool("search")
-        result = await _handle_call("testapp", tool, {"q": "hello"})
-
-        assert "error" in result.lower()
-        assert "base_url" in result
-
     @patch("requests.request")
     async def test_call_tool_with_auth(
         self,
@@ -150,7 +148,6 @@ class TestCallTool:
         from cli.formats.mcp_tool import TokenState
         from cli.helpers.storage import (
             ensure_app,
-            update_app_meta,
             write_token,
             write_tools,
         )
@@ -158,7 +155,6 @@ class TestCallTool:
         monkeypatch.setenv("SPECTRAL_HOME", str(tmp_path))
         ensure_app("testapp")
         write_tools("testapp", [_make_tool("search")])
-        update_app_meta("testapp", base_url="https://api.example.com")
 
         # Write a valid token
         write_token("testapp", TokenState(
@@ -192,7 +188,6 @@ class TestCallTool:
         from cli.formats.mcp_tool import TokenState
         from cli.helpers.storage import (
             ensure_app,
-            update_app_meta,
             write_token,
             write_tools,
         )
@@ -200,7 +195,6 @@ class TestCallTool:
         monkeypatch.setenv("SPECTRAL_HOME", str(tmp_path))
         ensure_app("testapp")
         write_tools("testapp", [_make_tool("search")])
-        update_app_meta("testapp", base_url="https://api.example.com")
 
         write_token("testapp", TokenState(
             headers={},
@@ -231,12 +225,11 @@ class TestCallTool:
         monkeypatch: pytest.MonkeyPatch,
         tmp_path: pytest.TempPathFactory,
     ) -> None:
-        from cli.helpers.storage import ensure_app, update_app_meta, write_tools
+        from cli.helpers.storage import ensure_app, write_tools
 
         monkeypatch.setenv("SPECTRAL_HOME", str(tmp_path))
         ensure_app("testapp")
         write_tools("testapp", [_make_tool("search")])
-        update_app_meta("testapp", base_url="https://api.example.com")
 
         mock_request.side_effect = Exception("Connection refused")
 
@@ -251,12 +244,11 @@ class TestCallTool:
     async def test_call_tool_requires_auth_short_circuits(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: pytest.TempPathFactory
     ) -> None:
-        from cli.helpers.storage import ensure_app, update_app_meta, write_tools
+        from cli.helpers.storage import ensure_app, write_tools
 
         monkeypatch.setenv("SPECTRAL_HOME", str(tmp_path))
         ensure_app("testapp")
         write_tools("testapp", [_make_tool("search", requires_auth=True)])
-        update_app_meta("testapp", base_url="https://api.example.com")
 
         tool = _make_tool("search", requires_auth=True)
         result = await _handle_call("testapp", tool, {"q": "test"})
@@ -272,12 +264,11 @@ class TestCallTool:
         monkeypatch: pytest.MonkeyPatch,
         tmp_path: pytest.TempPathFactory,
     ) -> None:
-        from cli.helpers.storage import ensure_app, update_app_meta, write_tools
+        from cli.helpers.storage import ensure_app, write_tools
 
         monkeypatch.setenv("SPECTRAL_HOME", str(tmp_path))
         ensure_app("testapp")
         write_tools("testapp", [_make_tool("search")])
-        update_app_meta("testapp", base_url="https://api.example.com")
 
         mock_resp = MagicMock()
         mock_resp.status_code = 200
@@ -362,11 +353,10 @@ class TestCallToolWithDefaults:
         monkeypatch: pytest.MonkeyPatch,
         tmp_path: pytest.TempPathFactory,
     ) -> None:
-        from cli.helpers.storage import ensure_app, update_app_meta, write_tools
+        from cli.helpers.storage import ensure_app, write_tools
 
         monkeypatch.setenv("SPECTRAL_HOME", str(tmp_path))
         ensure_app("testapp")
-        update_app_meta("testapp", base_url="https://api.example.com")
 
         tool = ToolDefinition(
             name="set_overlay",
@@ -383,7 +373,7 @@ class TestCallToolWithDefaults:
             },
             request=ToolRequest(
                 method="PUT",
-                path="/api/zones/{zone_id}/overlay",
+                url="https://api.example.com/api/zones/{zone_id}/overlay",
                 body={
                     "temperature": {"$param": "temperature"},
                     "setting": {

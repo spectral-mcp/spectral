@@ -52,7 +52,7 @@ class TestExtractAuthorizationHeader:
         store_capture(sample_bundle, "testapp")
 
         # LLM only needed for base_url detection (sample_bundle has no cached base_url)
-        _setup_extract_llm('{"base_url": "https://api.example.com"}')
+        _setup_extract_llm('{"base_urls": ["https://api.example.com"]}')
 
         runner = CliRunner()
         result = runner.invoke(cli, ["auth", "extract", "testapp"])
@@ -86,7 +86,7 @@ class TestExtractAuthorizationHeader:
         sample_bundle.traces.append(newer_trace)
         store_capture(sample_bundle, "testapp")
 
-        _setup_extract_llm('{"base_url": "https://api.example.com"}')
+        _setup_extract_llm('{"base_urls": ["https://api.example.com"]}')
 
         runner = CliRunner()
         result = runner.invoke(cli, ["auth", "extract", "testapp"])
@@ -124,7 +124,7 @@ class TestExtractCookieViaLlm:
         store_capture(sample_bundle, "testapp")
 
         _setup_extract_llm(
-            '{"base_url": "https://api.example.com"}',
+            '{"base_urls": ["https://api.example.com"]}',
             '{"header_names": ["Cookie"]}',
         )
 
@@ -168,7 +168,7 @@ class TestExtractNoAuth:
 
         # base_url detection, then LLM says no auth headers
         _setup_extract_llm(
-            '{"base_url": "https://api.example.com"}',
+            '{"base_urls": ["https://api.example.com"]}',
             '{"header_names": []}',
         )
 
@@ -206,7 +206,7 @@ class TestExtractNoMatchingTraces:
         store_capture(sample_bundle, "testapp")
 
         # base_url is different from the traces' URLs
-        _setup_extract_llm('{"base_url": "https://api.example.com"}')
+        _setup_extract_llm('{"base_urls": ["https://api.example.com"]}')
 
         runner = CliRunner()
         result = runner.invoke(cli, ["auth", "extract", "testapp"])

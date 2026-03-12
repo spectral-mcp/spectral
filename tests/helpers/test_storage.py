@@ -304,7 +304,7 @@ def _make_tool(name: str, description: str = "A tool") -> ToolDefinition:
         name=name,
         description=description,
         parameters={"type": "object", "properties": {}},
-        request=ToolRequest(method="GET", path=f"/{name}"),
+        request=ToolRequest(method="GET", url=f"/{name}"),
     )
 
 
@@ -389,17 +389,17 @@ class TestAppMetaFunctions:
     def test_update_app_meta(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
         monkeypatch.setenv("SPECTRAL_HOME", str(tmp_path))
         ensure_app("myapp")
-        update_app_meta("myapp", base_url="https://api.example.com")
+        update_app_meta("myapp", base_urls=["https://api.example.com"])
         meta = load_app_meta("myapp")
-        assert meta.base_url == "https://api.example.com"
+        assert meta.base_urls == ["https://api.example.com"]
 
     def test_update_app_meta_preserves_fields(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
         monkeypatch.setenv("SPECTRAL_HOME", str(tmp_path))
         ensure_app("myapp", "My App")
-        update_app_meta("myapp", base_url="https://api.example.com")
+        update_app_meta("myapp", base_urls=["https://api.example.com"])
         meta = load_app_meta("myapp")
         assert meta.display_name == "My App"
-        assert meta.base_url == "https://api.example.com"
+        assert meta.base_urls == ["https://api.example.com"]
 
 
 class TestConfigStorage:

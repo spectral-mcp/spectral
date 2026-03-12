@@ -6,7 +6,7 @@ from cli.formats.mcp_tool import TokenState, ToolDefinition, ToolRequest
 
 class TestToolRequest:
     def test_defaults(self) -> None:
-        req = ToolRequest(method="GET", path="/api/users")
+        req = ToolRequest(method="GET", url="/api/users")
         assert req.headers == {}
         assert req.query == {}
         assert req.body is None
@@ -15,7 +15,7 @@ class TestToolRequest:
     def test_roundtrip(self) -> None:
         req = ToolRequest(
             method="POST",
-            path="/api/v1/search",
+            url="/api/v1/search",
             headers={"X-Client-Version": "3.2.1"},
             query={"format": "json"},
             body={"origin": {"$param": "origin"}, "currency": "EUR"},
@@ -42,7 +42,7 @@ class TestToolDefinition:
             },
             request=ToolRequest(
                 method="POST",
-                path="/api/v1/search",
+                url="/api/v1/search",
                 body={"origin": {"$param": "origin"}, "destination": {"$param": "destination"}},
             ),
         )
@@ -59,7 +59,7 @@ class TestToolDefinition:
             name="get_status",
             description="Get system status",
             parameters={"type": "object", "properties": {}},
-            request=ToolRequest(method="GET", path="/status"),
+            request=ToolRequest(method="GET", url="/status"),
         )
         assert tool.request.body is None
         assert tool.request.headers == {}
@@ -69,7 +69,7 @@ class TestToolDefinition:
             name="get_status",
             description="Get system status",
             parameters={"type": "object", "properties": {}},
-            request=ToolRequest(method="GET", path="/status"),
+            request=ToolRequest(method="GET", url="/status"),
         )
         assert tool.requires_auth is True
 
@@ -78,7 +78,7 @@ class TestToolDefinition:
             name="get_public_info",
             description="Get public info",
             parameters={"type": "object", "properties": {}},
-            request=ToolRequest(method="GET", path="/public/info"),
+            request=ToolRequest(method="GET", url="/public/info"),
             requires_auth=False,
         )
         loaded = ToolDefinition.model_validate_json(tool.model_dump_json())
@@ -89,7 +89,7 @@ class TestToolDefinition:
         old_json = (
             '{"name":"x","description":"d",'
             '"parameters":{"type":"object","properties":{}},'
-            '"request":{"method":"GET","path":"/x"}}'
+            '"request":{"method":"GET","url":"/x"}}'
         )
         loaded = ToolDefinition.model_validate_json(old_json)
         assert loaded.requires_auth is True
@@ -119,26 +119,26 @@ class TestTokenState:
 
 
 class TestAppMetaBackwardCompat:
-    def test_base_url_default_none(self) -> None:
+    def test_base_urls_default_empty(self) -> None:
         meta = AppMeta(
             name="test",
             created_at="2026-01-01T00:00:00Z",
             updated_at="2026-01-01T00:00:00Z",
         )
-        assert meta.base_url is None
+        assert meta.base_urls == []
 
-    def test_base_url_roundtrip(self) -> None:
+    def test_base_urls_roundtrip(self) -> None:
         meta = AppMeta(
             name="test",
             created_at="2026-01-01T00:00:00Z",
             updated_at="2026-01-01T00:00:00Z",
-            base_url="https://api.example.com",
+            base_urls=["https://api.example.com"],
         )
         loaded = AppMeta.model_validate_json(meta.model_dump_json())
-        assert loaded.base_url == "https://api.example.com"
+        assert loaded.base_urls == ["https://api.example.com"]
 
-    def test_old_format_without_base_url(self) -> None:
-        """Existing app.json files without base_url should still load."""
+    def test_old_format_without_base_urls(self) -> None:
+        """Existing app.json files without base_urls should still load."""
         old_json = '{"name":"test","created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z"}'
         meta = AppMeta.model_validate_json(old_json)
-        assert meta.base_url is None
+        assert meta.base_urls == []
