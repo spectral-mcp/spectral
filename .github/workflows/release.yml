@@ -27,18 +27,7 @@ jobs:
         id: release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          CURRENT=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
-          uv run semantic-release -v version
-          LATEST=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
-
-          if [ "$CURRENT" = "$LATEST" ] || [ -z "$LATEST" ]; then
-            echo "released=false" >> "$GITHUB_OUTPUT"
-            echo "No release needed"
-          else
-            echo "released=true" >> "$GITHUB_OUTPUT"
-            echo "tag=$LATEST" >> "$GITHUB_OUTPUT"
-          fi
+        run: uv run semantic-release -v version
 
   publish:
     needs: release
