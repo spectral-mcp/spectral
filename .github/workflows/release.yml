@@ -23,10 +23,22 @@ jobs:
 
       - uses: astral-sh/setup-uv@v4
 
-      - uses: python-semantic-release/python-semantic-release@v9
+      - name: Semantic release
         id: release
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG=$(uv run semantic-release -v version --print-tag 2>/dev/null) || true
+
+          if [ -z "$TAG" ]; then
+            echo "released=false" >> "$GITHUB_OUTPUT"
+            echo "No release needed"
+            exit 0
+          fi
+
+          uv run semantic-release -v version
+          echo "released=true" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
   publish:
     needs: release
