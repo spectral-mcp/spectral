@@ -7,6 +7,13 @@
 </p>
 
 <p align="center">
+  <a href="https://pypi.org/project/spectral-mcp/"><img src="https://img.shields.io/pypi/v/spectral-mcp" alt="PyPI"></a>
+  <a href="https://pypi.org/project/spectral-mcp/"><img src="https://img.shields.io/pypi/pyversions/spectral-mcp" alt="Python"></a>
+  <a href="https://github.com/romain-gilliotte/spectral/actions/workflows/release.yml"><img src="https://github.com/romain-gilliotte/spectral/actions/workflows/release.yml/badge.svg" alt="CI"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/romain-gilliotte/spectral" alt="License"></a>
+</p>
+
+<p align="center">
   <a href="#install">Install</a> ·
   <a href="#why-spectral">Why Spectral</a> ·
   <a href="#how-it-works">How it works</a> ·
