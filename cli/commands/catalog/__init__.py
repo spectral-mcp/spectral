@@ -1,4 +1,4 @@
-"""Catalog command group — community tool catalog."""
+"""Community command group — community tool catalog."""
 
 from __future__ import annotations
 
@@ -12,12 +12,12 @@ from cli.commands.catalog.search import search
 
 
 @click.group()
-def catalog() -> None:
+def community() -> None:
     """Community tool catalog: publish, search, and install tools."""
 
 
-catalog.add_command(install)
-catalog.add_command(login)
-catalog.add_command(logout)
-catalog.add_command(publish)
-catalog.add_command(search)
+community.add_command(install)
+community.add_command(login)
+community.add_command(logout)
+community.add_command(publish)
+community.add_command(search)

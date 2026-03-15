@@ -13,7 +13,7 @@ _spectral() {
             'android:Android APK tools'
             'auth:Authentication management'
             'capture:Capture management'
-            'catalog:Community tool catalog'
+            'community:Community tool catalog'
             'completion:Generate shell completion script'
             'config:Configure API key and model'
             'extension:Chrome Extension integration'
@@ -26,7 +26,7 @@ _spectral() {
     fi
 
     case "${words[2]}" in
-        catalog)
+        community)
             if (( CURRENT == 3 )); then
                 local -a subcmds=(
                     'install:Install a tool collection'
@@ -35,7 +35,7 @@ _spectral() {
                     'publish:Publish tools to the catalog'
                     'search:Search for tool collections'
                 )
-                _describe 'catalog command' subcmds && ret=0
+                _describe 'community command' subcmds && ret=0
             else
                 case "${words[3]}" in
                     publish)

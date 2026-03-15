@@ -61,7 +61,7 @@ class TestCatalogLogin:
         mock_requests.get.return_value = user_resp
 
         runner = CliRunner()
-        result = runner.invoke(cli, ["catalog", "login"])
+        result = runner.invoke(cli, ["community", "login"])
 
         assert result.exit_code == 0, result.output
         assert "testuser" in result.output
@@ -87,7 +87,7 @@ class TestCatalogLogin:
         )
 
         runner = CliRunner()
-        result = runner.invoke(cli, ["catalog", "login"], input="n\n")
+        result = runner.invoke(cli, ["community", "login"], input="n\n")
 
         assert result.exit_code == 0
         assert "existing" in result.output
@@ -104,7 +104,7 @@ class TestCatalogLogout:
         )
 
         runner = CliRunner()
-        result = runner.invoke(cli, ["catalog", "logout"])
+        result = runner.invoke(cli, ["community", "logout"])
 
         assert result.exit_code == 0
         assert "Logged out" in result.output
@@ -115,7 +115,7 @@ class TestCatalogLogout:
     ) -> None:
         monkeypatch.setenv("SPECTRAL_HOME", str(tmp_path))
         runner = CliRunner()
-        result = runner.invoke(cli, ["catalog", "logout"])
+        result = runner.invoke(cli, ["community", "logout"])
 
         assert result.exit_code == 0
         assert "Not logged in" in result.output
@@ -132,7 +132,7 @@ class TestCatalogPublish:
         write_tools("myapp", [_make_tool("t1")])
 
         runner = CliRunner()
-        result = runner.invoke(cli, ["catalog", "publish", "myapp"])
+        result = runner.invoke(cli, ["community", "publish", "myapp"])
 
         assert result.exit_code != 0
         assert "Not logged in" in result.output
@@ -152,7 +152,7 @@ class TestCatalogPublish:
         )
 
         runner = CliRunner()
-        result = runner.invoke(cli, ["catalog", "publish", "myapp"])
+        result = runner.invoke(cli, ["community", "publish", "myapp"])
 
         assert result.exit_code != 0
         assert "no tools" in result.output
@@ -172,7 +172,7 @@ class TestCatalogPublish:
         )
 
         runner = CliRunner()
-        result = runner.invoke(cli, ["catalog", "publish", "user__app"])
+        result = runner.invoke(cli, ["community", "publish", "user__app"])
 
         assert result.exit_code != 0
         assert "Cannot publish" in result.output
@@ -206,7 +206,7 @@ class TestCatalogPublish:
         mock_requests.post.return_value = resp_mock
 
         runner = CliRunner()
-        result = runner.invoke(cli, ["catalog", "publish", "myapp"])
+        result = runner.invoke(cli, ["community", "publish", "myapp"])
 
         assert result.exit_code == 0, result.output
         assert "Pull request created successfully" in result.output
@@ -216,7 +216,7 @@ class TestCatalogPublish:
     ) -> None:
         monkeypatch.setenv("SPECTRAL_HOME", str(tmp_path))
         runner = CliRunner()
-        result = runner.invoke(cli, ["catalog", "publish", "nope"])
+        result = runner.invoke(cli, ["community", "publish", "nope"])
 
         assert result.exit_code != 0
         assert "not found" in result.output
@@ -256,7 +256,7 @@ class TestCatalogSearch:
         mock_requests.get.return_value = search_resp
 
         runner = CliRunner()
-        result = runner.invoke(cli, ["catalog", "search", "planity"])
+        result = runner.invoke(cli, ["community", "search", "planity"])
 
         assert result.exit_code == 0, result.output
         assert "planity" in result.output.lower()
@@ -293,7 +293,7 @@ class TestCatalogSearch:
         mock_requests.get.return_value = search_resp
 
         runner = CliRunner()
-        result = runner.invoke(cli, ["catalog", "search", "planity"])
+        result = runner.invoke(cli, ["community", "search", "planity"])
 
         assert result.exit_code == 0, result.output
         assert "Installed" in result.output
@@ -315,7 +315,7 @@ class TestCatalogSearch:
         mock_requests.post.return_value = MagicMock(status_code=204)
 
         runner = CliRunner()
-        result = runner.invoke(cli, ["catalog", "search", "nonexistent"])
+        result = runner.invoke(cli, ["community", "search", "nonexistent"])
 
         assert result.exit_code == 0
         assert "No results" in result.output
@@ -353,7 +353,7 @@ class TestSendStatsBestEffort:
         mock_requests.post.return_value = stats_resp
 
         runner = CliRunner()
-        runner.invoke(cli, ["catalog", "search", "anything"])
+        runner.invoke(cli, ["community", "search", "anything"])
 
         # Check that stats POST was called with catalog app stats
         post_calls = mock_requests.post.call_args_list
@@ -373,7 +373,7 @@ class TestCatalogInstall:
     ) -> None:
         monkeypatch.setenv("SPECTRAL_HOME", str(tmp_path))
         runner = CliRunner()
-        result = runner.invoke(cli, ["catalog", "install", "badref"])
+        result = runner.invoke(cli, ["community", "install", "badref"])
 
         assert result.exit_code != 0
         assert "Invalid collection reference" in result.output
@@ -427,7 +427,7 @@ class TestCatalogInstall:
         mock_requests.get.side_effect = [contents_resp, manifest_resp, tool_resp]
 
         runner = CliRunner()
-        result = runner.invoke(cli, ["catalog", "install", "romain/test-app"])
+        result = runner.invoke(cli, ["community", "install", "romain/test-app"])
 
         assert result.exit_code == 0, result.output
         assert "Installed 1 tools" in result.output
@@ -463,7 +463,7 @@ class TestCatalogInstall:
         mock_requests.get.return_value = contents_resp
 
         runner = CliRunner()
-        result = runner.invoke(cli, ["catalog", "install", "user/app"])
+        result = runner.invoke(cli, ["community", "install", "user/app"])
 
         assert result.exit_code != 0
         assert "No files found" in result.output

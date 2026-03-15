@@ -14,12 +14,12 @@ _spectral() {
 
     # Top-level
     if [[ $cword -eq 1 ]]; then
-        COMPREPLY=($(compgen -W "android auth capture catalog completion config extension graphql mcp openapi --help --version" -- "$cur"))
+        COMPREPLY=($(compgen -W "android auth capture community completion config extension graphql mcp openapi --help --version" -- "$cur"))
         return
     fi
 
     case "$cmd1" in
-        catalog)
+        community)
             if [[ $cword -eq 2 ]]; then
                 COMPREPLY=($(compgen -W "install login logout publish search --help" -- "$cur"))
                 return

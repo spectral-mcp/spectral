@@ -32,7 +32,7 @@ def publish(app_name: str) -> None:
     token = load_catalog_token()
     if not token:
         raise click.ClickException(
-            "Not logged in. Run 'spectral catalog login' first."
+            "Not logged in. Run 'spectral community login' first."
         )
 
     # 3. Reject catalog-installed apps (double underscore)
