@@ -1,30 +1,30 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/romain-gilliotte/spectral/main/assets/banner-wide-dark.png">
-    <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/romain-gilliotte/spectral/main/assets/banner-wide-light.png">
-    <img src="https://raw.githubusercontent.com/romain-gilliotte/spectral/main/assets/banner-wide-dark.png" alt="Spectral" width="600">
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/spectral-mcp/spectral/main/assets/banner-wide-dark.png">
+    <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/spectral-mcp/spectral/main/assets/banner-wide-light.png">
+    <img src="https://raw.githubusercontent.com/spectral-mcp/spectral/main/assets/banner-wide-dark.png" alt="Spectral" width="600">
   </picture>
 </p>
 
 <p align="center">
   <a href="https://pypi.org/project/spectral-mcp/"><img src="https://img.shields.io/pypi/v/spectral-mcp" alt="PyPI"></a>
   <a href="https://pypi.org/project/spectral-mcp/"><img src="https://img.shields.io/pypi/pyversions/spectral-mcp" alt="Python"></a>
-  <a href="https://github.com/romain-gilliotte/spectral/actions/workflows/release.yml"><img src="https://github.com/romain-gilliotte/spectral/actions/workflows/release.yml/badge.svg" alt="CI"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/github/license/romain-gilliotte/spectral" alt="License"></a>
+  <a href="https://github.com/spectral-mcp/spectral/actions/workflows/release.yml"><img src="https://github.com/spectral-mcp/spectral/actions/workflows/release.yml/badge.svg" alt="CI"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/spectral-mcp/spectral" alt="License"></a>
 </p>
 
 <p align="center">
   <a href="#install">Install</a> ·
   <a href="#why-spectral">Why Spectral</a> ·
   <a href="#how-it-works">How it works</a> ·
-  <a href="https://www.getspectral.sh/documentation/getting-started/"><strong>Documentation</strong></a> ·
+  <a href="https://www.getspectral.sh/documentation"><strong>Documentation</strong></a> ·
   <a href="https://www.getspectral.sh/"><strong>Website</strong></a>
 </p>
 
-AI agents shouldn't need a browser. Mobile and web apps talk to APIs all day — Spectral gives that same access to your AI agents.
+AI agents shouldn't need browser automation. Mobile and web apps talk to private APIs all day — Spectral gives that same access to your AI agents.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/romain-gilliotte/spectral/main/assets/demo.gif" width="750" alt="Spectral demo — analyze traffic, then Claude uses the API">
+  <img src="https://raw.githubusercontent.com/spectral-mcp/spectral/main/assets/demo.gif" width="750" alt="Spectral demo — analyze traffic, then Claude uses the API">
 </p>
 
 ## Why Spectral
@@ -61,7 +61,7 @@ uv tool install spectral-mcp
 
 You also need an [Anthropic API key](https://console.anthropic.com/) — Spectral will prompt for it on first analysis.
 
-See the [documentation](https://www.getspectral.sh/getting-started/) for setup guides, capture instructions, and CLI reference.
+See the [documentation](https://www.getspectral.sh/documentation) for setup guides, capture instructions, and CLI reference.
 
 ## How it works
 
