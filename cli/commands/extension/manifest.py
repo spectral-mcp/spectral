@@ -12,6 +12,8 @@ import click
 from cli.helpers.storage import store_root
 
 HOST_NAME = "com.spectral.capture_host"
+CHROME_STORE_URL = "https://chromewebstore.google.com/detail/spectral-api-discovery/jpogcadeieghkniojbgnmfhikpealbib"
+DEFAULT_EXTENSION_ID = "jpogcadeieghkniojbgnmfhikpealbib"
 MANIFEST_FILENAME = f"{HOST_NAME}.json"
 
 # Browser → config dir (relative to ~) per OS.
@@ -107,8 +109,9 @@ def _write_wrapper_script_python(python_path: str) -> Path:
 @click.command()
 @click.option(
     "--extension-id",
-    required=True,
-    help="Chrome extension ID (from chrome://extensions).",
+    default=DEFAULT_EXTENSION_ID,
+    show_default=True,
+    help="Chrome extension ID (override for local development).",
 )
 @click.option(
     "--browser",
@@ -148,3 +151,7 @@ def install(extension_id: str, browser: str | None) -> None:
     console.print(f"\n[green]Native messaging host installed.[/green]")
     console.print(f"  Wrapper: {script}")
     console.print(f"  Host name: {manifest['name']}")
+
+    if extension_id == DEFAULT_EXTENSION_ID:
+        console.print(f"\nInstall the extension from the Chrome Web Store:")
+        console.print(f"  {CHROME_STORE_URL}")

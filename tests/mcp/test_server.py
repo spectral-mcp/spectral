@@ -326,6 +326,7 @@ class TestCatalogToolsInRegistry:
         assert app_name == "romain__planity-com"
         assert tool.name == "search"
 
+    @pytest.mark.skip(reason="Stats recording disabled until batched approach is implemented")
     @patch("requests.request")
     async def test_catalog_tool_records_stats(
         self,
@@ -355,6 +356,7 @@ class TestCatalogToolsInRegistry:
         assert stats.root["search"].last_status_code == 200
         assert stats.root["search"].avg_latency_ms > 0
 
+    @pytest.mark.skip(reason="Stats recording disabled until batched approach is implemented")
     @patch("requests.request")
     async def test_stats_recorded_on_http_error(
         self,

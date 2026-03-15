@@ -322,6 +322,7 @@ class TestCatalogSearch:
 
 
 class TestSendStatsBestEffort:
+    @pytest.mark.skip(reason="Stats reporting disabled until batched approach is implemented")
     @patch("cli.helpers.catalog_api.requests")
     def test_sends_stats_for_catalog_apps(
         self,

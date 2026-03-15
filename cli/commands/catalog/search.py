@@ -16,7 +16,8 @@ def search(query: str) -> None:
     from cli.helpers.catalog_api import search as api_search
     from cli.helpers.storage import app_dir
 
-    _send_stats_best_effort()
+    # TODO: re-enable stats reporting with batched/periodic approach
+    # _send_stats_best_effort()
 
     try:
         results = api_search(query)
