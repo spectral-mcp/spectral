@@ -1,6 +1,23 @@
 # CHANGELOG
 
 
+## v0.5.0 (2026-03-15)
+
+### Chores
+
+- Disable per-call stats recording and default extension ID to store
+  ([`d28b563`](https://github.com/spectral-mcp/spectral/commit/d28b563e6fb4a9e27343071b59e1d4722c276e96))
+
+- Disable stats recording in MCP server (too heavy per-call, will batch later) - Disable stats
+  reporting in catalog search - Default --extension-id to published Chrome Web Store ID - Show
+  Chrome Web Store URL after native host install
+
+### Features
+
+- Rename CLI command 'spectral catalog' to 'spectral community'
+  ([`b33f21a`](https://github.com/spectral-mcp/spectral/commit/b33f21a476d838c2191b3bfdc43433a31b82728d))
+
+
 ## v0.4.0 (2026-03-15)
 
 ### Documentation
