@@ -22,7 +22,7 @@ import yaml
 
 from cli.commands.capture.types import CaptureBundle
 from cli.formats.capture_bundle import CaptureStats
-from cli.helpers.llm._client import set_test_model
+from cli.helpers.llm.providers.testing import set_test_model
 from cli.main import cli
 
 

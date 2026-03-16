@@ -10,7 +10,7 @@ from pydantic_ai.models.function import AgentInfo, FunctionModel
 import pytest
 
 import cli.helpers.llm as llm
-from cli.helpers.llm._client import set_test_model
+from cli.helpers.llm.providers.testing import set_test_model
 from cli.helpers.llm.tools._decode_base64 import execute as execute_decode_base64
 from cli.helpers.llm.tools._decode_jwt import execute as execute_decode_jwt
 from cli.helpers.llm.tools._decode_url import execute as execute_decode_url

@@ -7,9 +7,9 @@ import json
 
 import pytest
 
-from cli.helpers.llm._client import clear_test_model
 from cli.helpers.llm._cost import reset_usage
 from cli.helpers.llm._debug import clear_debug_dir
+from cli.helpers.llm.providers.testing import clear_test_model
 
 
 @pytest.fixture(autouse=True)

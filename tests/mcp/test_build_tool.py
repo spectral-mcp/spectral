@@ -20,7 +20,7 @@ from cli.formats.capture_bundle import (
     Timeline,
 )
 from cli.formats.mcp_tool import collect_param_refs
-from cli.helpers.llm._client import set_test_model
+from cli.helpers.llm.providers.testing import set_test_model
 from tests.conftest import make_trace
 
 

@@ -12,50 +12,8 @@ _total_cache_read_tokens: int = 0
 _total_cache_creation_tokens: int = 0
 _total_cost: float = 0.0
 
-# Per-million-token pricing: (input_$/M, output_$/M)
-_MODEL_PRICING: dict[str, tuple[float, float]] = {
-    "claude-sonnet-4-5-20250929": (3.0, 15.0),
-    "claude-sonnet-4-20250514": (3.0, 15.0),
-    "claude-haiku-4-5-20251001": (1.0, 5.0),
-}
 
-
-def _estimate_cost(
-    model: str,
-    input_tokens: int,
-    output_tokens: int,
-    cache_read_tokens: int = 0,
-    cache_creation_tokens: int = 0,
-) -> float | None:
-    """Return estimated USD cost, or ``None`` if model pricing is unknown.
-
-    Cache pricing follows Anthropic rates:
-    - cache reads cost 10% of the input rate
-    - cache writes cost 125% of the input rate
-    """
-    pricing = _MODEL_PRICING.get(model)
-    if pricing is None:
-        return None
-    inp_rate, out_rate = pricing
-    return (
-        input_tokens * inp_rate
-        + cache_read_tokens * inp_rate * 0.1
-        + cache_creation_tokens * inp_rate * 1.25
-        + output_tokens * out_rate
-    ) / 1_000_000
-
-
-def get_usage() -> tuple[int, int]:
-    """Return accumulated token usage as ``(input_tokens, output_tokens)``."""
-    return (_total_input_tokens, _total_output_tokens)
-
-
-def get_cache_usage() -> tuple[int, int]:
-    """Return accumulated cache token usage as ``(cache_read, cache_creation)``."""
-    return (_total_cache_read_tokens, _total_cache_creation_tokens)
-
-
-def _record_usage(usage: Any, label: str, model: str) -> None:  # pyright: ignore[reportUnusedFunction]
+def record_usage(usage: Any, label: str) -> None:
     """Accumulate token counts from a PydanticAI ``RunUsage`` and print a dim summary."""
     global _total_input_tokens, _total_output_tokens
     global _total_cache_read_tokens, _total_cache_creation_tokens, _total_cost
@@ -73,7 +31,7 @@ def _record_usage(usage: Any, label: str, model: str) -> None:  # pyright: ignor
     _total_cache_read_tokens += cache_read
     _total_cache_creation_tokens += cache_create
 
-    call_cost = _estimate_cost(model, inp, out, cache_read, cache_create)
+    call_cost = _estimate_cost(inp, out, cache_read, cache_create)
     if call_cost is not None:
         _total_cost += call_cost
 
@@ -104,9 +62,33 @@ def reset_usage() -> None:
 
 
 def print_usage_summary() -> None:
-    """Print a formatted usage summary line. Replaces cmd.py boilerplate."""
-    inp_tok, out_tok = get_usage()
-    if not (inp_tok or out_tok):
+    """Print a formatted usage summary line."""
+    if not (_total_input_tokens or _total_output_tokens):
         return
     cost_str = f" (~${_total_cost:.2f})" if _total_cost else ""
-    console.print(f"  LLM token usage: {inp_tok:,} input, {out_tok:,} output{cost_str}")
+    console.print(
+        f"  LLM token usage: {_total_input_tokens:,} input, "
+        f"{_total_output_tokens:,} output{cost_str}"
+    )
+
+
+def _estimate_cost(
+    input_tokens: int,
+    output_tokens: int,
+    cache_read_tokens: int = 0,
+    cache_creation_tokens: int = 0,
+) -> float | None:
+    """Return estimated USD cost, or ``None`` if model pricing is unknown."""
+    from cli.helpers.llm._client import get_or_create_config
+
+    config = get_or_create_config()
+    if config.input_price_per_m is None or config.output_price_per_m is None:
+        return None
+    inp_rate = config.input_price_per_m
+    out_rate = config.output_price_per_m
+    return (
+        input_tokens * inp_rate
+        + cache_read_tokens * inp_rate * 0.1
+        + cache_creation_tokens * inp_rate * 1.25
+        + output_tokens * out_rate
+    ) / 1_000_000

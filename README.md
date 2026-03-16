@@ -31,6 +31,8 @@ AI agents shouldn't need browser automation. Mobile and web apps talk to private
 
 Most apps — web, mobile, desktop — sit on top of undocumented HTTP APIs. Spectral records the traffic while you browse, uses an LLM to understand what each call does, and generates MCP tools that any AI agent can call.
 
+Spectral supports multiple LLM providers — Anthropic, OpenRouter, OpenAI, Ollama, and any OpenAI-compatible endpoint. Run `spectral config` to pick your provider and model. Spectral will prompt for it on first analysis.
+
 - **Works everywhere.** Websites, mobile apps (Android), desktop apps, CLI tools — if it speaks HTTPS, Spectral can capture it.
 
 - **Understands what you do, not just what the network sends.** Spectral correlates your clicks and navigation with API calls to figure out the business meaning of each endpoint — not just its shape.
@@ -58,8 +60,6 @@ pip install spectral-mcp
 # or
 uv tool install spectral-mcp
 ```
-
-You also need an [Anthropic API key](https://console.anthropic.com/) — Spectral will prompt for it on first analysis.
 
 See the [documentation](https://www.getspectral.sh/documentation) for setup guides, capture instructions, and CLI reference.
 

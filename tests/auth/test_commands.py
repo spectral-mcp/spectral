@@ -11,7 +11,7 @@ from pydantic_ai.models.function import AgentInfo, FunctionModel
 import pytest
 
 from cli.commands.capture.types import CaptureBundle
-from cli.helpers.llm._client import set_test_model
+from cli.helpers.llm.providers.testing import set_test_model
 from cli.main import cli
 
 _DEFAULT_SCRIPT_RESPONSE = (

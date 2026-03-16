@@ -15,7 +15,7 @@ from cli.formats.capture_bundle import (
     Timeline,
 )
 from cli.helpers.detect_base_url import detect_base_urls
-from cli.helpers.llm._client import set_test_model
+from cli.helpers.llm.providers.testing import set_test_model
 from tests.conftest import make_trace
 
 

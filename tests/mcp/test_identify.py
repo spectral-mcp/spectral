@@ -16,7 +16,7 @@ from pydantic_ai.models.function import AgentInfo, FunctionModel
 
 from cli.commands.mcp.identify import identify_capabilities
 from cli.formats.mcp_tool import ToolDefinition, ToolRequest
-from cli.helpers.llm._client import set_test_model
+from cli.helpers.llm.providers.testing import set_test_model
 from tests.conftest import make_trace
 
 

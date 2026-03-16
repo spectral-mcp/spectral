@@ -16,7 +16,7 @@ import cli.helpers.llm as llm
 from cli.helpers.llm import (
     _debug as _debug_mod,  # pyright: ignore[reportPrivateUsage]
 )
-from cli.helpers.llm._client import set_test_model
+from cli.helpers.llm.providers.testing import set_test_model
 
 
 class _SampleModel(BaseModel):
@@ -64,14 +64,14 @@ class TestConversationAskText:
     @pytest.mark.asyncio
     async def test_uses_configured_model(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
         from cli.formats.config import Config
-        from cli.helpers.storage import write_config
+        from cli.helpers.llm._client import clear_config, set_config
 
-        monkeypatch.setenv("SPECTRAL_HOME", str(tmp_path))
-        write_config(Config(api_key="sk-ant-test", model="claude-test-123"))
-        conv = llm.Conversation()
-        assert conv._model == "claude-test-123"
         set_test_model(_text_model("ok"))
+        set_config(Config(api_key="sk-ant-test", model="claude-test-123", provider="test"))
+        conv = llm.Conversation()
+        assert conv._config.model == "claude-test-123"
         await conv.ask_text("hello")
+        clear_config()
 
     @pytest.mark.asyncio
     async def test_no_system_works(self):

@@ -52,7 +52,7 @@ def analyze(app_name: str, output: str, debug: bool, skip_enrich: bool) -> None:
     llm.init_debug(debug=debug)
 
     console.print(
-        f"[bold]Analyzing with LLM ({llm.get_or_create_config().model})...[/bold]"
+        f"[bold]Analyzing with LLM ({llm.current_model()})...[/bold]"
     )
     openapi_dict = asyncio.run(_run_openapi(bundle, app_name, skip_enrich))
 

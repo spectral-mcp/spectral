@@ -8,8 +8,8 @@ from typing import Any, TypeVar
 from pydantic import BaseModel
 
 from cli.commands.capture.types import CaptureBundle
-from cli.helpers.llm._client import get_or_create_config, get_test_model
-from cli.helpers.llm._cost import _record_usage  # pyright: ignore[reportPrivateUsage]
+from cli.helpers.llm._client import get_or_create_config
+from cli.helpers.llm._cost import record_usage
 from cli.helpers.llm._debug import DebugSession
 from cli.helpers.llm.tools import ToolDeps, make_tools
 
@@ -39,13 +39,7 @@ class Conversation:
         self._label = label
         self._dbg = DebugSession(label or "call")
 
-        if get_test_model() is None:
-            config = get_or_create_config()
-            self._api_key = config.api_key
-            self._model = config.model
-        else:
-            self._api_key = ""
-            self._model = ""
+        self._config = get_or_create_config()
 
         if tool_names is not None:
             self._tools = make_tools(tool_names)
@@ -79,22 +73,16 @@ class Conversation:
         """Run the agent and record results."""
         from pydantic_ai import Agent
         from pydantic_ai.agent import CallToolsNode
-        from pydantic_ai.models.anthropic import AnthropicModel, AnthropicModelSettings
         from pydantic_ai.usage import UsageLimits
 
-        if get_test_model():
-            model: Any = get_test_model()
-        else:
-            from pydantic_ai.providers.anthropic import AnthropicProvider
+        from cli.helpers.llm.providers import build_model
 
-            provider = AnthropicProvider(api_key=self._api_key)
-            model = AnthropicModel(self._model, provider=provider)
-
-        settings = AnthropicModelSettings(
+        model, settings = build_model(
+            self._config.provider,
+            model_name=self._config.model,
+            api_key=self._config.api_key,
+            base_url=self._config.base_url,
             max_tokens=self._max_tokens,
-            anthropic_cache_instructions="5m",
-            anthropic_cache_tool_definitions="5m",
-            anthropic_cache_messages="5m",
         )
 
         agent = Agent(
@@ -124,7 +112,7 @@ class Conversation:
         assert result is not None
         self._dbg.record_messages(result.all_messages(), flushed_len)
         self._messages = result.all_messages()
-        _record_usage(result.usage(), self._label, self._model)
+        record_usage(result.usage(), self._label)
 
         return result.output
 

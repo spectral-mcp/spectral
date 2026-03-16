@@ -138,7 +138,7 @@ def analyze_cmd(app_name: str, debug: bool) -> None:
 
     llm.init_debug(debug=debug)
 
-    console.print(f"[bold]Generating MCP tools with LLM ({llm.get_or_create_config().model})...[/bold]")
+    console.print(f"[bold]Generating MCP tools with LLM ({llm.current_model()})...[/bold]")
     tools = asyncio.run(build_mcp_tools(bundle, app_name))
 
     write_tools(app_name, tools)

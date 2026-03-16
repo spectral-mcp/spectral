@@ -47,7 +47,7 @@ def analyze(app_name: str, output: str, debug: bool, skip_enrich: bool) -> None:
 
     llm.init_debug(debug=debug)
 
-    console.print(f"[bold]Analyzing with LLM ({llm.get_or_create_config().model})...[/bold]")
+    console.print(f"[bold]Analyzing with LLM ({llm.current_model()})...[/bold]")
     sdl = asyncio.run(_run_graphql(bundle, app_name, skip_enrich))
 
     output_base = Path(output)

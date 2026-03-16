@@ -12,7 +12,7 @@ import pytest
 
 from cli.commands.capture.types import CaptureBundle
 from cli.formats.capture_bundle import Header
-from cli.helpers.llm._client import set_test_model
+from cli.helpers.llm.providers.testing import set_test_model
 from cli.main import cli
 from tests.conftest import make_trace
 
