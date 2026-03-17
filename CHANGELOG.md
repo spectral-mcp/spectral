@@ -1,6 +1,35 @@
 # CHANGELOG
 
 
+## v0.6.1 (2026-03-17)
+
+### Bug Fixes
+
+- Omit system_prompt when empty to avoid Anthropic API rejection
+  ([#4](https://github.com/spectral-mcp/spectral/pull/4),
+  [`a2bafff`](https://github.com/spectral-mcp/spectral/commit/a2bafffe00b65f432986f6ac8107d2c6398d4bda))
+
+Anthropic's API rejects messages with `{'role': 'system', 'content': ''}`. When no system prompt is
+  provided, the code was passing `system_prompt=""` to PydanticAI Agent, which translated to an
+  empty system message.
+
+This caused all LLM calls without an explicit system prompt (e.g. `detect_base_urls`) to fail with a
+  400 error when routed through LiteLLM to any Anthropic model (claude-opus, claude-sonnet,
+  claude-haiku).
+
+The fix omits the `system_prompt` kwarg entirely when there is no system prompt, so PydanticAI never
+  generates a system message.
+
+Co-authored-by: Charles-Henri ROBICHE <charleshenri.robiche@loreal.com>
+
+Co-authored-by: Claude Opus 4.6 (1M context) <noreply@anthropic.com>
+
+### Documentation
+
+- Update demo gif
+  ([`420e014`](https://github.com/spectral-mcp/spectral/commit/420e014df6ad06f703919ff3f0dc45398739349e))
+
+
 ## v0.6.0 (2026-03-16)
 
 ### Documentation
