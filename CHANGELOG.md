@@ -1,6 +1,78 @@
 # CHANGELOG
 
 
+## v0.7.0 (2026-03-19)
+
+### Bug Fixes
+
+- **debug**: Write tool results and improve auth prompt
+  ([`74429d0`](https://github.com/spectral-mcp/spectral/commit/74429d0c935d5b61e06d6fe191a37193a2d1b27f))
+
+Debug: - Fix tool results never appearing (calls and returns were in different batches, matching by
+  tool_call_id always missed) - Write ToolReturnPart explicitly with args summary in header - Record
+  on every graph node for incremental output - Add tools summary header at top of debug files
+
+Auth prompt: - Inspect only auth-related traces + 1-2 API calls, not everything - Allow full stdlib
+  (not just a hardcoded list), forbid filesystem - No module-level side effects, no extraneous
+  requests - No commentary in output, just the code block
+
+- **mcp**: Strip response headers from MCP tool output
+  ([`cc5de8e`](https://github.com/spectral-mcp/spectral/commit/cc5de8eafc79f9296f8eb46f75825bbb25533dbc))
+
+Response headers are noise that consumes tokens without providing useful information to the AI
+  agent. The status code and body are sufficient.
+
+- **types**: Resolve pyright errors in search, ui, and test files
+  ([`d7ddd87`](https://github.com/spectral-mcp/spectral/commit/d7ddd870f585e8c648940db64380cc4e900624a2))
+
+### Chores
+
+- **scripts**: Add seed script for demo-api test app
+  ([`946b487`](https://github.com/spectral-mcp/spectral/commit/946b48722485cfb2722807576ec9b32a0ef1b2da))
+
+Creates scripts/seed_demo_app.py that populates managed storage with a realistic e-commerce capture
+  bundle (7 REST traces + UI contexts) for testing the analysis pipeline without real captures or
+  LLM costs.
+
+### Features
+
+- **catalog**: Support auth script in publish and install flows
+  ([`2c7ee2c`](https://github.com/spectral-mcp/spectral/commit/2c7ee2c5920d7b96ef75f61d2886fe66d3d00d29))
+
+- **storage**: Strict app name validation to prevent path traversal and naming conflicts
+  ([`fc37f9f`](https://github.com/spectral-mcp/spectral/commit/fc37f9f38207c119043385ce5900c070403edb33))
+
+Centralizes app name validation in storage.py with APP_NAME_RE (lowercase alphanum + single
+  hyphens). Validates in app_dir() and ensure_app() to cover all read/write paths. Adds interactive
+  validation loop in proxy command and validates extension native messaging input.
+
+### Refactoring
+
+- Remove unnecessary async/await from analysis pipeline
+  ([`2087ae3`](https://github.com/spectral-mcp/spectral/commit/2087ae36e78ea672382eaa6ea60734ccf4c92dd3))
+
+Replace agent.iter() with agent.run_sync() wrapped in asyncio.run() inside Conversation._run(),
+  making ask_text/ask_json synchronous. Remove async/await from all callers bottom-up (17 source
+  files, 9 test files). Replace asyncio.gather with sequential loops in enrichment. Remove
+  asyncio.run() wrappers from CLI entry points. MCP server stays async as required by the mcp
+  library.
+
+- **auth**: Split auth_runtime into focused modules and rewrite tests
+  ([`f1166aa`](https://github.com/spectral-mcp/spectral/commit/f1166aa628ef5af680ac70690593a3b1a947bc0d))
+
+Split cli/helpers/auth_runtime.py into cli/helpers/auth/ package: - errors.py: AuthError,
+  AuthScriptInvalid, AuthScriptError, AuthScriptNotFound - generation.py: extract_script,
+  get_auth_instructions (with exec validation) - runtime.py: call_auth_module with output capture
+  via partial - usage.py: get_auth, acquire_auth, refresh_auth cascade
+
+Simplify auth analyze/login to use build_timeline instead of build_shared_context (removes base URL
+  detection from auth pipeline). Unify fix templates into a single auth-fix.j2. Limit fix loop to 5
+  attempts. Restore refresh failure warning in get_auth. Move imports to top level per project
+  conventions.
+
+Rewrite all auth tests as focused unit tests with proper mocking.
+
+
 ## v0.6.1 (2026-03-17)
 
 ### Bug Fixes
