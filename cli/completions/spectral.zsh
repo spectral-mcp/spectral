@@ -192,6 +192,8 @@ _spectral() {
                     'list:List packages'
                     'patch:Patch APK'
                     'pull:Pull APK'
+                    'replace:Pull, patch, uninstall, and reinstall'
+                    'uninstall:Uninstall package'
                 )
                 _describe 'android command' subcmds && ret=0
             else
@@ -199,6 +201,9 @@ _spectral() {
                     pull|patch)
                         _arguments \
                             '(-o --output)'{-o,--output}'[Output path]' \
+                            '--help[Show help]' && ret=0 ;;
+                    replace|uninstall)
+                        _arguments \
                             '--help[Show help]' && ret=0 ;;
                 esac
             fi ;;

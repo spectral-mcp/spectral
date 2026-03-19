@@ -9,15 +9,19 @@ from cli.commands.android.install import install
 from cli.commands.android.list import list_cmd
 from cli.commands.android.patch import patch_cmd
 from cli.commands.android.pull import pull
+from cli.commands.android.replace import replace
+from cli.commands.android.uninstall import uninstall
 
 
 @click.group()
 def android() -> None:
-    """Android APK tools (pull, patch, install, cert)."""
+    """Android APK tools (pull, patch, install, uninstall, replace, cert)."""
 
 
 android.add_command(list_cmd)
 android.add_command(pull)
 android.add_command(patch_cmd, "patch")
 android.add_command(install)
+android.add_command(uninstall)
+android.add_command(replace)
 android.add_command(cert)

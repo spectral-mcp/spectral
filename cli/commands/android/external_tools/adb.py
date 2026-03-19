@@ -159,6 +159,15 @@ def install_apk(path: Path) -> None:
     run_cmd(cmd, "Failed to install", timeout=120)
 
 
+def uninstall_app(package: str) -> None:
+    """Uninstall a package from the connected device.
+
+    Args:
+        package: Package name (e.g. "com.example.app").
+    """
+    run_cmd(["adb", "uninstall", package], f"Failed to uninstall {package}", timeout=30)
+
+
 def push_cert(cert_path: Path) -> str:
     """Push a CA certificate to the device's /sdcard/.
 
