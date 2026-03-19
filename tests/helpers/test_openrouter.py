@@ -1,5 +1,5 @@
 """Tests for provider integration (config, cost, model selection)."""
-# pyright: reportPrivateUsage=false
+# pyright: reportPrivateUsage=false, reportUnknownMemberType=false
 
 from __future__ import annotations
 

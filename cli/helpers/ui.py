@@ -17,7 +17,7 @@ class Choice(Generic[T]):
 
     value: T
     label: str
-    columns: list[str] = field(default_factory=list)
+    columns: list[str] = field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
 
 
 def select_from_list(choices: list[Choice[T]], message: str = "Select") -> T:
@@ -32,7 +32,7 @@ def select_from_list(choices: list[Choice[T]], message: str = "Select") -> T:
     import questionary
 
     max_label = max(len(c.label) for c in choices)
-    max_cols = max((len(c.columns) for c in choices), default=0)
+    max_cols: int = max((len(c.columns) for c in choices), default=0)
 
     # Compute the max width per column position.
     col_widths = [0] * max_cols

@@ -78,7 +78,7 @@ def _parse_entry(
     )
 
 
-def _send_stats_best_effort() -> None:
+def _send_stats_best_effort() -> None:  # pyright: ignore[reportUnusedFunction]
     """Send local stats to the backend in a best-effort manner."""
     import hashlib
     import platform
