@@ -1,6 +1,18 @@
 # CHANGELOG
 
 
+## v0.8.0 (2026-03-19)
+
+### Features
+
+- **android**: Add uninstall and replace commands
+  ([`25d2c55`](https://github.com/spectral-mcp/spectral/commit/25d2c5572c54dce182617754fa5a02238e4b7ca0))
+
+Add `spectral android uninstall <package>` to remove a package from a connected device, and
+  `spectral android replace <package>` to chain pull → patch → uninstall → install in a temporary
+  directory.
+
+
 ## v0.7.0 (2026-03-19)
 
 ### Bug Fixes
