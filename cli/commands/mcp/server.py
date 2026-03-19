@@ -83,16 +83,7 @@ async def _handle_call(
     except Exception as exc:
         return json.dumps({"error": f"HTTP request failed: {exc}"})
 
-    # Format response
-    result_parts = [f"HTTP {resp.status_code}"]
-
-    resp_headers = dict(resp.headers)
-    if resp_headers:
-        result_parts.append(f"Headers: {json.dumps(resp_headers)}")
-
-    result_parts.append(resp.text)
-
-    return "\n\n".join(result_parts)
+    return f"HTTP {resp.status_code}\n\n{resp.text}"
 
 
 def _apply_defaults(
