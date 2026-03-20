@@ -285,6 +285,38 @@ class TestDomainToRegex:
         assert result == r"\*"
 
 
+class TestRunMitmproxyIgnoreHosts:
+    @patch("mitmproxy.tools.dump.DumpMaster")
+    @patch("mitmproxy.options.Options")
+    def test_ignore_hosts_passed(
+        self, mock_options_cls: MagicMock, mock_master_cls: MagicMock
+    ) -> None:
+        mock_opts = MagicMock()
+        mock_options_cls.return_value = mock_opts
+
+        async def _noop() -> None:
+            pass
+
+        mock_master = MagicMock()
+        mock_master.run.return_value = _noop()
+        mock_master_cls.return_value = mock_master
+
+        # Make proxy_thread.is_alive() return False immediately
+        with patch("cli.commands.capture._mitmproxy.threading.Thread") as mock_thread:
+            mock_thread.return_value.is_alive.return_value = False
+            from cli.commands.capture._mitmproxy import run_mitmproxy
+
+            run_mitmproxy(
+                8080,
+                [],
+                ignore_hosts=["*.google.com", "accounts.google.com"],
+            )
+
+        mock_opts.update.assert_any_call(
+            ignore_hosts=[r".*\.google\.com", "accounts.google.com"]
+        )
+
+
 class TestManifestCompat:
     def test_existing_manifests_still_parse(self) -> None:
         """Chrome extension bundles without capture_method should still work."""

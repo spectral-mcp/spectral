@@ -191,6 +191,7 @@ def _run_proxy_to_storage(
     port: int,
     app_name: str,
     allow_hosts: list[str] | None = None,
+    ignore_hosts: list[str] | None = None,
     mode: str = "regular",
 ) -> tuple[CaptureStats, Path]:
     """Start a MITM proxy, capture traffic, and store in managed storage.
@@ -199,6 +200,7 @@ def _run_proxy_to_storage(
         port: Proxy listen port.
         app_name: App name for managed storage.
         allow_hosts: Only intercept these host patterns (regex).
+        ignore_hosts: Pass these host patterns through without MITM.
         mode: mitmproxy mode string (e.g. "regular", "wireguard:/path/to/conf").
 
     Returns:
@@ -207,7 +209,12 @@ def _run_proxy_to_storage(
     addon = CaptureAddon()
     block_quic = mode != "regular"
     start_time, end_time = run_mitmproxy(
-        port, [addon], allow_hosts=allow_hosts, mode=mode, block_quic=block_quic
+        port,
+        [addon],
+        allow_hosts=allow_hosts,
+        ignore_hosts=ignore_hosts,
+        mode=mode,
+        block_quic=block_quic,
     )
 
     bundle = addon.build_bundle(app_name, start_time, end_time)
@@ -227,6 +234,13 @@ def _run_proxy_to_storage(
     help="Only intercept these domains (e.g. '*.example.com'). Can be repeated.",
 )
 @click.option(
+    "-e",
+    "--exclude",
+    "excludes",
+    multiple=True,
+    help="Exclude these domains from MITM (pass through). Can be repeated.",
+)
+@click.option(
     "--wireguard",
     "--wg",
     "wireguard",
@@ -235,11 +249,16 @@ def _run_proxy_to_storage(
     help="Use WireGuard VPN mode (captures traffic from apps that ignore system proxy).",
 )
 def proxy_cmd(
-    app_name: str | None, port: int, domains: tuple[str, ...], wireguard: bool
+    app_name: str | None,
+    port: int,
+    domains: tuple[str, ...],
+    excludes: tuple[str, ...],
+    wireguard: bool,
 ) -> None:
     """Start a MITM proxy to capture traffic into managed storage.
 
     Without -d, intercepts all domains. With -d, only matching domains.
+    Use -e to exclude specific domains from MITM (e.g. SSO providers).
 
     Use --wireguard for apps that bypass the system proxy (e.g. Flutter).
     """
@@ -260,6 +279,7 @@ def proxy_cmd(
                 click.echo(exc.format_message())
 
     allow_hosts = list(domains) if domains else None
+    ignore_hosts = list(excludes) if excludes else None
     mode = "regular"
 
     if wireguard:
@@ -280,11 +300,13 @@ def proxy_cmd(
         console.print(f"  Domains: {', '.join(allow_hosts)}")
     else:
         console.print("  Intercepting all domains")
+    if ignore_hosts:
+        console.print(f"  Excluded: {', '.join(ignore_hosts)}")
 
     click.echo("\n  Capturing... press Ctrl+C to stop.\n")
 
     stats, cap_dir = _run_proxy_to_storage(
-        port, app_name, allow_hosts=allow_hosts, mode=mode
+        port, app_name, allow_hosts=allow_hosts, ignore_hosts=ignore_hosts, mode=mode
     )
     console.print()
     console.print(f"[green]Capture stored in {cap_dir}[/green]")

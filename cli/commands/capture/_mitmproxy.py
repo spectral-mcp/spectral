@@ -145,6 +145,7 @@ def run_mitmproxy(
     port: int,
     addons: list[object],
     allow_hosts: list[str] | None = None,
+    ignore_hosts: list[str] | None = None,
     mode: str = "regular",
     block_quic: bool = False,
 ) -> tuple[float, float]:
@@ -160,6 +161,9 @@ def run_mitmproxy(
     if allow_hosts:
         regex_hosts = [_domain_to_regex(h) for h in allow_hosts]
         opts.update(allow_hosts=regex_hosts)  # pyright: ignore[reportUnknownMemberType]
+    if ignore_hosts:
+        regex_hosts = [_domain_to_regex(h) for h in ignore_hosts]
+        opts.update(ignore_hosts=regex_hosts)  # pyright: ignore[reportUnknownMemberType]
     master = DumpMaster(opts, loop=loop)
     if block_quic:
         master.addons.add(_BlockQuicAddon())  # pyright: ignore[reportUnknownMemberType]
