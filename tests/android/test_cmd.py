@@ -33,8 +33,3 @@ class TestAndroidCLI:
         assert result.exit_code == 0
         assert "APK_PATH" in result.output
 
-    def test_cert_help(self) -> None:
-        runner = CliRunner()
-        result = runner.invoke(cli, ["android", "cert", "--help"])
-        assert result.exit_code == 0
-        assert "CERT_PATH" in result.output

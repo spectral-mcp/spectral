@@ -20,25 +20,25 @@ def replace(package: str) -> None:
     """
     from cli.commands.android.external_tools.adb import (
         check_adb,
+        get_apk_paths,
         install_apk,
         pull_apks,
         uninstall_app,
     )
-    from cli.commands.android.patch import patch_apk, patch_apk_dir
+    from cli.commands.android.patch import patch_apk
 
     check_adb()
 
     with tempfile.TemporaryDirectory(prefix="spectral_replace_") as tmpdir:
         tmp = Path(tmpdir)
+        is_split = len(get_apk_paths(package)) > 1
+        ext = ".apks" if is_split else ".apk"
 
         console.print(f"[bold]Pulling:[/bold] {package}")
-        path, is_split = pull_apks(package, tmp / "original")
+        path, _ = pull_apks(package, tmp / f"original{ext}")
 
         console.print("[bold]Patching...[/bold]")
-        if is_split:
-            patched = patch_apk_dir(path, tmp / "patched")
-        else:
-            patched = patch_apk(path, tmp / "patched.apk")
+        patched = patch_apk(path, tmp / f"patched{ext}")
 
         console.print(f"[bold]Uninstalling:[/bold] {package}")
         uninstall_app(package)

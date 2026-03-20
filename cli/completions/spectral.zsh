@@ -188,7 +188,6 @@ _spectral() {
         android)
             if (( CURRENT == 3 )); then
                 local -a subcmds=(
-                    'cert:Push certificate'
                     'install:Install APK'
                     'list:List packages'
                     'patch:Patch APK'

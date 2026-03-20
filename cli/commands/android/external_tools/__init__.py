@@ -1,1 +1,1 @@
-"""Wrappers for external Android development tools (adb, apktool, uber-apk-signer)."""
+"""Wrappers for external Android development tools (adb)."""
