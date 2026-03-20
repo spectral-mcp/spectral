@@ -66,7 +66,8 @@ def discover(port: int) -> None:
         for domain, count in sorted(domains.items(), key=lambda x: -x[1]):
             console.print(f"    {count:4d}  {domain}")
         top = sorted(domains.items(), key=lambda x: -x[1])[0][0]
-        console.print("\n  Re-run with -d to capture specific domains, e.g.:")
-        console.print(f"    spectral capture proxy -d '{top}'\n")
+        console.print("\n  Re-run with -d to capture specific domains, or -e to exclude:")
+        console.print(f"    spectral capture proxy -d '{top}'")
+        console.print(f"    spectral capture proxy -e '*.google.com'\n")
     else:
         console.print("\n  No domains discovered.\n")
