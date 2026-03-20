@@ -6,6 +6,8 @@ from pathlib import Path
 import shutil
 import socket
 import subprocess
+import tempfile
+import zipfile
 
 from cli.commands.android.external_tools.subprocess import run_cmd
 
@@ -104,12 +106,12 @@ def pull_apk(remote_path: str, local_path: Path) -> Path:
 def pull_apks(package: str, output: Path) -> tuple[Path, bool]:
     """Pull all APKs for a package from the device.
 
-    Single APK → saves as a file (backward compat).
-    Split APKs → creates a directory with all APKs, preserving device names.
+    Single APK → saved as a .apk file.
+    Split APKs → packed into a .apks zip bundle.
 
     Args:
         package: Package name (e.g. "com.example.app").
-        output: Destination path (used as file for single, directory for splits).
+        output: Destination path (.apk file or .apks bundle).
 
     Returns:
         Tuple of (output_path, is_split) where is_split is True if multiple APKs.
@@ -117,46 +119,54 @@ def pull_apks(package: str, output: Path) -> tuple[Path, bool]:
     remote_paths = get_apk_paths(package)
 
     if len(remote_paths) == 1:
-        # Single APK → pull as file
         pull_apk(remote_paths[0], output)
         return (output, False)
 
-    # Multiple APKs → pull into directory
-    output.mkdir(parents=True, exist_ok=True)
-    pulled: list[Path] = []
-    try:
-        for remote_path in remote_paths:
-            # Preserve the device filename (e.g. base.apk, split_config.arm64_v8a.apk)
-            filename = remote_path.rsplit("/", 1)[-1]
-            local_path = output / filename
-            pull_apk(remote_path, local_path)
-            pulled.append(local_path)
-    except (AdbError, Exception):
-        # Clean up on partial failure
-        for p in pulled:
-            p.unlink(missing_ok=True)
-        if output.exists() and not any(output.iterdir()):
-            output.rmdir()
-        raise
+    # Multiple APKs → pull to temp dir then pack into .apks zip
+    with tempfile.TemporaryDirectory(prefix="apk_pull_") as tmp:
+        tmp_path = Path(tmp)
+        pulled: list[Path] = []
+        try:
+            for remote_path in remote_paths:
+                filename = remote_path.rsplit("/", 1)[-1]
+                local_path = tmp_path / filename
+                pull_apk(remote_path, local_path)
+                pulled.append(local_path)
+        except (AdbError, Exception):
+            output.unlink(missing_ok=True)
+            raise
+
+        output.parent.mkdir(parents=True, exist_ok=True)
+        with zipfile.ZipFile(output, "w") as zf:
+            for apk in pulled:
+                zf.write(apk, apk.name)
 
     return (output, True)
 
 
 def install_apk(path: Path) -> None:
-    """Install an APK or directory of split APKs to the device.
+    """Install an APK or .apks bundle to the device.
 
     Args:
-        path: Path to a single APK file or a directory containing split APKs.
+        path: Path to a .apk file or a .apks zip bundle.
     """
-    if path.is_dir():
-        apks = sorted(path.glob("*.apk"))
-        if not apks:
-            raise AdbError(f"No .apk files found in {path}")
-        cmd = ["adb", "install-multiple", "-r"] + [str(a) for a in apks]
+    if path.suffix == ".apks":
+        _install_apks_bundle(path)
     else:
-        cmd = ["adb", "install", "-r", str(path)]
+        run_cmd(["adb", "install", "-r", str(path)], "Failed to install", timeout=120)
 
-    run_cmd(cmd, "Failed to install", timeout=120)
+
+def _install_apks_bundle(bundle: Path) -> None:
+    """Extract a .apks zip and install via adb install-multiple."""
+    with tempfile.TemporaryDirectory(prefix="apk_install_") as tmp:
+        tmp_path = Path(tmp)
+        with zipfile.ZipFile(bundle, "r") as zf:
+            zf.extractall(tmp_path)
+        apks = sorted(tmp_path.glob("*.apk"))
+        if not apks:
+            raise AdbError(f"No .apk files found in {bundle}")
+        cmd = ["adb", "install-multiple", "-r"] + [str(a) for a in apks]
+        run_cmd(cmd, "Failed to install", timeout=120)
 
 
 def uninstall_app(package: str) -> None:
@@ -167,27 +177,6 @@ def uninstall_app(package: str) -> None:
     """
     run_cmd(["adb", "uninstall", package], f"Failed to uninstall {package}", timeout=30)
 
-
-def push_cert(cert_path: Path) -> str:
-    """Push a CA certificate to the device's /sdcard/.
-
-    Args:
-        cert_path: Path to the certificate file (e.g. mitmproxy-ca-cert.pem).
-
-    Returns:
-        The device-side filename (e.g. "mitmproxy-ca-cert.crt").
-
-    Raises:
-        AdbError: If the push fails.
-    """
-    device_filename = cert_path.stem + ".crt"
-    device_path = f"/sdcard/{device_filename}"
-    run_cmd(
-        ["adb", "push", str(cert_path), device_path],
-        "Failed to push cert",
-        timeout=15,
-    )
-    return device_filename
 
 
 def set_proxy(host: str, port: int) -> None:

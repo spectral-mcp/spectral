@@ -90,7 +90,7 @@ _spectral() {
             esac ;;
         android)
             if [[ $cword -eq 2 ]]; then
-                COMPREPLY=($(compgen -W "cert install list patch pull replace uninstall --help" -- "$cur"))
+                COMPREPLY=($(compgen -W "install list patch pull replace uninstall --help" -- "$cur"))
                 return
             fi
             case "$cmd2" in

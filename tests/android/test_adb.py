@@ -19,7 +19,6 @@ from cli.commands.android.external_tools.adb import (
     list_packages,
     pull_apk,
     pull_apks,
-    push_cert,
     set_proxy,
 )
 
@@ -132,47 +131,6 @@ class TestPullApk:
                 pull_apk("/data/app/base.apk", local_path)
 
 
-class TestPushCert:
-    def test_push_success(self, tmp_path: Path) -> None:
-        cert = tmp_path / "mitmproxy-ca-cert.pem"
-        cert.write_text("fake cert")
-
-        with patch("subprocess.run") as mock_run:
-            mock_run.return_value = subprocess.CompletedProcess(
-                args=[], returncode=0, stdout="1 file pushed\n", stderr=""
-            )
-            device_filename = push_cert(cert)
-
-        assert device_filename == "mitmproxy-ca-cert.crt"
-        cmd = mock_run.call_args[0][0]
-        assert cmd[0] == "adb"
-        assert cmd[1] == "push"
-        assert "/sdcard/mitmproxy-ca-cert.crt" in cmd
-
-    def test_push_failure(self, tmp_path: Path) -> None:
-        cert = tmp_path / "my-cert.pem"
-        cert.write_text("fake cert")
-
-        with patch("subprocess.run") as mock_run:
-            mock_run.return_value = subprocess.CompletedProcess(
-                args=[], returncode=1, stdout="", stderr="device offline"
-            )
-            with pytest.raises(RuntimeError, match="Failed to push cert"):
-                push_cert(cert)
-
-    def test_custom_cert_name(self, tmp_path: Path) -> None:
-        cert = tmp_path / "custom-ca.pem"
-        cert.write_text("fake cert")
-
-        with patch("subprocess.run") as mock_run:
-            mock_run.return_value = subprocess.CompletedProcess(
-                args=[], returncode=0, stdout="", stderr=""
-            )
-            device_filename = push_cert(cert)
-
-        assert device_filename == "custom-ca.crt"
-
-
 class TestSetProxy:
     def test_set_proxy_success(self) -> None:
         with patch("subprocess.run") as mock_run:
@@ -259,7 +217,6 @@ class TestPullApks:
         def fake_run(
             cmd: list[str], **kwargs: object
         ) -> subprocess.CompletedProcess[str]:
-            # get_apk_paths call
             if "pm" in cmd and "path" in cmd:
                 return subprocess.CompletedProcess(
                     args=cmd,
@@ -267,9 +224,7 @@ class TestPullApks:
                     stdout="package:/data/app/com.example-1/base.apk\n",
                     stderr="",
                 )
-            # pull call
             if "pull" in cmd:
-                # Simulate adb pull creating the file
                 Path(cmd[-1]).write_bytes(b"fake-apk-data")
                 return subprocess.CompletedProcess(
                     args=cmd, returncode=0, stdout="1 file pulled\n", stderr=""
@@ -285,8 +240,8 @@ class TestPullApks:
         assert result_path == output
         assert result_path.is_file()
 
-    def test_split_apks_pulls_as_directory(self, tmp_path: Path) -> None:
-        output = tmp_path / "com.example"
+    def test_split_apks_pulls_as_apks_bundle(self, tmp_path: Path) -> None:
+        output = tmp_path / "com.example.apks"
 
         remote_paths = [
             "package:/data/app/com.example-1/base.apk",
@@ -318,44 +273,17 @@ class TestPullApks:
 
         assert is_split is True
         assert result_path == output
-        assert result_path.is_dir()
-        assert (result_path / "base.apk").exists()
-        assert (result_path / "split_config.arm64_v8a.apk").exists()
-        assert (result_path / "split_config.fr.apk").exists()
+        assert result_path.is_file()
 
-    def test_split_apks_preserves_device_filenames(self, tmp_path: Path) -> None:
-        output = tmp_path / "com.example"
+        # Verify it's a valid zip containing the APKs
+        import zipfile
 
-        def fake_run(
-            cmd: list[str], **kwargs: object
-        ) -> subprocess.CompletedProcess[str]:
-            if "pm" in cmd and "path" in cmd:
-                return subprocess.CompletedProcess(
-                    args=cmd,
-                    returncode=0,
-                    stdout=(
-                        "package:/data/app/com.example-1/base.apk\n"
-                        "package:/data/app/com.example-1/split_config.xxhdpi.apk\n"
-                    ),
-                    stderr="",
-                )
-            if "pull" in cmd:
-                Path(cmd[-1]).write_bytes(b"data")
-                return subprocess.CompletedProcess(
-                    args=cmd, returncode=0, stdout="", stderr=""
-                )
-            return subprocess.CompletedProcess(
-                args=cmd, returncode=0, stdout="", stderr=""
-            )
-
-        with patch("subprocess.run", side_effect=fake_run):
-            result_path, _ = pull_apks("com.example", output)
-
-        filenames = {f.name for f in result_path.glob("*.apk")}
-        assert filenames == {"base.apk", "split_config.xxhdpi.apk"}
+        with zipfile.ZipFile(result_path, "r") as zf:
+            names = set(zf.namelist())
+        assert names == {"base.apk", "split_config.arm64_v8a.apk", "split_config.fr.apk"}
 
     def test_partial_failure_cleans_up(self, tmp_path: Path) -> None:
-        output = tmp_path / "com.example"
+        output = tmp_path / "com.example.apks"
         call_count = 0
 
         def fake_run(
@@ -375,13 +303,11 @@ class TestPullApks:
             if "pull" in cmd:
                 call_count += 1
                 if call_count == 1:
-                    # First pull succeeds
                     Path(cmd[-1]).write_bytes(b"data")
                     return subprocess.CompletedProcess(
                         args=cmd, returncode=0, stdout="", stderr=""
                     )
                 else:
-                    # Second pull fails
                     return subprocess.CompletedProcess(
                         args=cmd, returncode=1, stdout="", stderr="device offline"
                     )
@@ -393,9 +319,8 @@ class TestPullApks:
             with pytest.raises(RuntimeError, match="Failed to pull APK"):
                 pull_apks("com.example", output)
 
-        # Cleaned up: pulled files should be removed
-        if output.exists():
-            assert not any(output.iterdir())
+        # Output file should not exist after failure
+        assert not output.exists()
 
 
 class TestInstallApk:
@@ -413,30 +338,25 @@ class TestInstallApk:
             assert cmd[:3] == ["adb", "install", "-r"]
             assert str(apk) in cmd
 
-    def test_directory_uses_adb_install_multiple(self, tmp_path: Path) -> None:
-        apk_dir = tmp_path / "splits"
-        apk_dir.mkdir()
-        (apk_dir / "base.apk").write_bytes(b"base")
-        (apk_dir / "split_config.arm64_v8a.apk").write_bytes(b"split1")
-        (apk_dir / "split_config.fr.apk").write_bytes(b"split2")
+    def test_apks_bundle_uses_install_multiple(self, tmp_path: Path) -> None:
+        import zipfile
+
+        bundle = tmp_path / "app.apks"
+        with zipfile.ZipFile(bundle, "w") as zf:
+            zf.writestr("base.apk", b"base")
+            zf.writestr("split_config.arm64_v8a.apk", b"split1")
+            zf.writestr("split_config.fr.apk", b"split2")
 
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = subprocess.CompletedProcess(
                 args=[], returncode=0, stdout="Success\n", stderr=""
             )
-            install_apk(apk_dir)
+            install_apk(bundle)
 
             cmd = mock_run.call_args[0][0]
             assert cmd[:3] == ["adb", "install-multiple", "-r"]
             apk_args = cmd[3:]
             assert len(apk_args) == 3
-
-    def test_empty_directory_raises(self, tmp_path: Path) -> None:
-        empty_dir = tmp_path / "empty"
-        empty_dir.mkdir()
-
-        with pytest.raises(AdbError, match="No .apk files found"):
-            install_apk(empty_dir)
 
     def test_install_failure_raises(self, tmp_path: Path) -> None:
         apk = tmp_path / "app.apk"

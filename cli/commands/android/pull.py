@@ -15,13 +15,13 @@ from cli.helpers.console import console
     "-o",
     "--output",
     default=None,
-    help="Output path (file for single APK, directory for splits)",
+    help="Output path (.apk file or .apks bundle)",
 )
 def pull(package: str, output: str | None) -> None:
     """Pull all APKs for a package from a connected Android device.
 
-    Single APK apps are saved as a file. Split APK apps (App Bundles)
-    are saved as a directory containing all split APKs.
+    Single APK apps are saved as a .apk file. Split APK apps (App Bundles)
+    are packed into a .apks zip bundle.
     """
     from cli.commands.android.external_tools.adb import (
         check_adb,
@@ -37,7 +37,7 @@ def pull(package: str, output: str | None) -> None:
 
     if is_split:
         console.print(f"  Found {len(apk_paths)} split APKs")
-        default_output = Path(package)
+        default_output = Path(f"{package}.apks")
     else:
         console.print("  Found single APK")
         default_output = Path(f"{package}.apk")
@@ -47,12 +47,5 @@ def pull(package: str, output: str | None) -> None:
     for p in apk_paths:
         console.print(f"  Pulling {p}")
 
-    result_path, was_split = pull_apks(package, out)
-
-    if was_split:
-        apk_files = sorted(result_path.glob("*.apk"))
-        console.print(f"[green]Split APKs saved to {result_path}/[/green]")
-        for f in apk_files:
-            console.print(f"  {f.name}")
-    else:
-        console.print(f"[green]APK saved to {result_path}[/green]")
+    result_path, _ = pull_apks(package, out)
+    console.print(f"[green]Saved to {result_path}[/green]")
