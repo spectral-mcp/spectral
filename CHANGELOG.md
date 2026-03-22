@@ -1,6 +1,66 @@
 # CHANGELOG
 
 
+## v0.9.0 (2026-03-22)
+
+### Bug Fixes
+
+- **android**: Pass missing is_app_bundle option to apk-mitm-python
+  ([`6866fb0`](https://github.com/spectral-mcp/spectral/commit/6866fb083d92783d6bd61d08b90c62635e71ee0e))
+
+- **mcp**: Use absolute URLs in tool definitions, fix auth cookie instructions
+  ([`5e40c79`](https://github.com/spectral-mcp/spectral/commit/5e40c792bc5e3aa24b2faffaebde7638835ab734))
+
+- Remove urljoin-based URL relativization in analyze.py — LLM now produces absolute URLs directly
+  from captured traces - Add Field(pattern=r"^https?://") on ToolRequest.url to enforce absolute
+  URLs at the schema level - Update mcp-build-tool-instructions.j2 to request absolute URLs - Update
+  auth-instructions.j2 to explicitly document cookie-based auth: cookies must be returned as a
+  Cookie header, not in a cookie jar - Update all test fixtures to use absolute URLs
+
+### Features
+
+- **android**: Replace homegrown APK patching with apk-mitm-python
+  ([`9a52b38`](https://github.com/spectral-mcp/spectral/commit/9a52b388532c2d52f8ba90173c126d1816dccd64))
+
+Delegate all APK patching to apk-mitm-python which handles network security config, smali-level cert
+  pinning bypass (javax, OkHttp), and certificate embedding — instead of only modifying the XML
+  config.
+
+- Add apk-mitm-python git dependency - Rewrite patch.py as a thin wrapper around apk-mitm-python -
+  Pull split APKs as .apks zip bundles instead of directories - Install handles .apks bundles
+  transparently - Remove cert command (cert is now embedded in patched APKs) - Remove homegrown
+  apktool/uber-signer/bootstrap wrappers - Simplify replace flow (no more split vs single branching)
+
+- **capture**: Add domain exclusion (-e/--exclude) to proxy command
+  ([`e4834d4`](https://github.com/spectral-mcp/spectral/commit/e4834d46fe4e97dede9d2afe9e4da5a6f85ca5d0))
+
+Leverage mitmproxy's native ignore_hosts to let users exclude domains from MITM interception (e.g.
+  Google SSO domains that reject our CA).
+
+- **capture**: Add WireGuard VPN mode to MITM proxy
+  ([`5d82a00`](https://github.com/spectral-mcp/spectral/commit/5d82a005399d7ce6c580284f7c230f22b851019f))
+
+Add --wireguard/--wg flag to `spectral capture proxy` for capturing traffic from apps that bypass
+  the system proxy (e.g. Flutter apps).
+
+- Add `mode` and `block_quic` params to `run_mitmproxy()` - Generate/reuse WireGuard keys stored in
+  $SPECTRAL_HOME/wireguard.conf - Display client config with optional QR code (segno dependency) -
+  Block QUIC (UDP:443) in non-regular modes to force HTTP/2 fallback - Update shell completions for
+  --wireguard/--wg - Add tests for WireGuard config generation, display, and key reuse
+
+- **capture**: Auto-detect foreground Android app and per-app capture storage
+  ([`055ded8`](https://github.com/spectral-mcp/spectral/commit/055ded82769179eb6a65ad22ce5664e211454b03))
+
+- Add --autodetect-app flag to proxy command: polls ADB for the foreground app and groups captured
+  traces into separate bundles per detected package (replaces -a when used) - Introduce AppProvider
+  abstraction (FixedAppProvider / ForegroundAppPoller) and add app_package field to TraceMeta -
+  Extract WireGuard helpers into _wireguard.py module (shared by proxy and discover) and add
+  --wireguard flag to discover command - Simplify QUIC blocking: use mitmproxy native http3 option
+  instead of custom _BlockQuicAddon - Remove WebSocket capture support from CaptureAddon - Add
+  adb.get_foreground_package() to query the resumed activity - Update shell completions, tests, and
+  return types accordingly
+
+
 ## v0.8.0 (2026-03-19)
 
 ### Features
