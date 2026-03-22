@@ -87,7 +87,7 @@ Repository = "https://github.com/romain-gilliotte/spectral"
 Issues = "https://github.com/romain-gilliotte/spectral/issues"
 
 [tool.uv.sources]
-apk-mitm-python = { git = "https://github.com/romain-gilliotte/apk-mitm-python.git" }
+apk-mitm-python = { git = "https://github.com/spectral-mcp/apk-mitm-python.git" }
 
 [tool.semantic_release]
 version_toml = ["pyproject.toml:project.version"]

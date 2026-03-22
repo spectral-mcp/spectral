@@ -75,7 +75,7 @@ wheels = [
 [[package]]
 name = "apk-mitm-python"
 version = "0.1.0"
-source = { git = "https://github.com/romain-gilliotte/apk-mitm-python.git#f099b4878bfdfad9ad8a027cae43bb86e94b569b" }
+source = { git = "https://github.com/spectral-mcp/apk-mitm-python.git#da21ab52ffb2f8c98bebb167dc8894cb94b6f69f" }
 dependencies = [
     { name = "colorama", marker = "python_full_version >= '3.13'" },
     { name = "httpx", marker = "python_full_version >= '3.13'" },
@@ -2439,7 +2439,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "apk-mitm-python", marker = "python_full_version >= '3.13'", git = "https://github.com/romain-gilliotte/apk-mitm-python.git" },
+    { name = "apk-mitm-python", marker = "python_full_version >= '3.13'", git = "https://github.com/spectral-mcp/apk-mitm-python.git" },
     { name = "click", specifier = ">=8.1" },
     { name = "compact-json", specifier = ">=1.8.2" },
     { name = "graphql-core", specifier = ">=3.2" },
