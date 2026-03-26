@@ -11,10 +11,10 @@ import pytest
 from cli.helpers.auth.errors import AuthError, AuthScriptError
 from cli.helpers.auth.usage import (
     _is_token_valid,
-    _result_to_token_state,
     acquire_auth,
     get_auth,
     refresh_auth,
+    result_to_token_state,
 )
 from tests.auth.conftest import make_token
 
@@ -158,7 +158,7 @@ class TestIsTokenValid:
 
 
 # ---------------------------------------------------------------------------
-# _result_to_token_state
+# result_to_token_state
 # ---------------------------------------------------------------------------
 
 
@@ -167,7 +167,7 @@ class TestResultToTokenState:
     def test_basic_headers(self, mock_time: object) -> None:
         mock_time.time.return_value = FIXED_NOW  # type: ignore[union-attr]
 
-        result = _result_to_token_state({"headers": {"X-Key": "abc"}})
+        result = result_to_token_state({"headers": {"X-Key": "abc"}})
 
         assert result.headers == {"X-Key": "abc"}
         assert result.body_params == {}
@@ -179,7 +179,7 @@ class TestResultToTokenState:
     def test_with_expires_in(self, mock_time: object) -> None:
         mock_time.time.return_value = FIXED_NOW  # type: ignore[union-attr]
 
-        result = _result_to_token_state(
+        result = result_to_token_state(
             {"headers": {"Authorization": "Bearer t"}, "expires_in": 3600}
         )
 
@@ -189,7 +189,7 @@ class TestResultToTokenState:
     def test_with_refresh_token(self, mock_time: object) -> None:
         mock_time.time.return_value = FIXED_NOW  # type: ignore[union-attr]
 
-        result = _result_to_token_state(
+        result = result_to_token_state(
             {"headers": {}, "refresh_token": "rt_abc"}
         )
 
@@ -199,7 +199,7 @@ class TestResultToTokenState:
     def test_empty_result(self, mock_time: object) -> None:
         mock_time.time.return_value = FIXED_NOW  # type: ignore[union-attr]
 
-        result = _result_to_token_state({})
+        result = result_to_token_state({})
 
         assert result.headers == {}
         assert result.body_params == {}
@@ -210,7 +210,7 @@ class TestResultToTokenState:
     def test_body_params_preserved(self, mock_time: object) -> None:
         mock_time.time.return_value = FIXED_NOW  # type: ignore[union-attr]
 
-        result = _result_to_token_state(
+        result = result_to_token_state(
             {"headers": {}, "body_params": {"token": "xyz"}}
         )
 

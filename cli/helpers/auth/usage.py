@@ -42,7 +42,7 @@ def refresh_auth(
     """Load auth_acquire.py and call ``refresh_token()``."""
 
     result = call_auth_module(app_name, "refresh_token", output, token.refresh_token)
-    new_token = _result_to_token_state(result)
+    new_token = result_to_token_state(result)
     write_token(app_name, new_token)
     return new_token
 
@@ -51,7 +51,7 @@ def acquire_auth(app_name: str, output: list[str] | None = None) -> TokenState:
     """Load auth_acquire.py and call ``acquire_token()`` interactively."""
 
     result = call_auth_module(app_name, "acquire_token", output)
-    new_token = _result_to_token_state(result)
+    new_token = result_to_token_state(result)
     write_token(app_name, new_token)
     return new_token
 
@@ -63,7 +63,7 @@ def _is_token_valid(token: TokenState) -> bool:
     return token.expires_at > time.time()
 
 
-def _result_to_token_state(result: dict[str, Any]) -> TokenState:
+def result_to_token_state(result: dict[str, Any]) -> TokenState:
     """Convert an auth function result dict to TokenState."""
     now = time.time()
     expires_at: float | None = None

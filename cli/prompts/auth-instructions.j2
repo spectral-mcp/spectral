@@ -42,6 +42,7 @@ auth, POST-based APIs)
 - Receives the current refresh token string
 - Returns the same dict format as acquire_token
 - Raises Exception on failure
+- **Only include this function if a refresh endpoint was actually captured in the traces.** If no refresh flow was observed, simply omit `refresh_token()` entirely — do NOT generate a stub that raises an exception
 
 ## Rules
 
@@ -60,9 +61,7 @@ messages, `debug` for troubleshooting. Do NOT use `input()` or `print()` directl
 often validate the client identity via custom headers (User-Agent, app version, device info, API keys, etc.) and reject
 requests missing them with 403. Copy ALL non-standard request headers from the captured traces into your HTTP requests.
 Only omit headers managed automatically by urllib (`Host`, `Content-Length`, `Accept-Encoding`)
-- **Only use observed endpoints**: only call endpoints you can see in the captured traces. If a flow (e.g., token
-refresh) was not captured, make `refresh_token` raise an exception explaining the endpoint was not observed instead of
-guessing a URL
+- **Only use observed endpoints**: only call endpoints you can see in the captured traces. Do not guess URLs for endpoints that were not captured
 
 ## Output format
 
