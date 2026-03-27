@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.10.1 (2026-03-27)
+
+### Bug Fixes
+
+- **install**: Point Chrome extension step to Web Store docs
+  ([`d179e0b`](https://github.com/spectral-mcp/spectral/commit/d179e0b02976252b918423d5f45984fc5051872f))
+
+
 ## v0.10.0 (2026-03-27)
 
 ### Chores
